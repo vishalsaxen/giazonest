@@ -6,9 +6,9 @@ import {
 import {
   getFirestore, collection, getDocs, addDoc, updateDoc, writeBatch, doc, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, SUPER_ADMIN_EMAIL } from "./firebase-config.js";
-import { PINS, EXAMPLE_SELLERS, EXAMPLE_BUYERS } from "./pincodes.js";
-import { CATEGORIES, subsOf, typesOf } from "./categories.js";
+import { firebaseConfig, SUPER_ADMIN_EMAIL } from "./firebase-config.js?v=dev";
+import { PINS, EXAMPLE_SELLERS, EXAMPLE_BUYERS } from "./pincodes.js?v=dev";
+import { CATEGORIES, subsOf, typesOf } from "./categories.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
 const ADMIN = SUPER_ADMIN_EMAIL.toLowerCase();
@@ -145,7 +145,7 @@ function render() {
   const list = (all, few, html) => few.length ? few.map(html).join("")
     : `<li class="empty" style="display:block">None within ${RADIUS} km.${all[0] && all[0].d !== Infinity ? ` The nearest is ${esc(all[0].r.name)}, ${fmt(all[0].d)} away.` : ""}</li>`;
   $("#sellers-list").innerHTML = list(s, sNear, ({ r, d }) =>
-    `<li><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · Pin ${esc(r.pin)}</span><span class="dist">${fmt(d)}</span></li>`);
+    `<li><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · Pin ${esc(r.pin)}</span><span class="dist">${fmt(d)}</span><button type="button" class="btn ghost small kyc-btn" data-seller="${esc(r.id)}">Review KYC</button></li>`);
   $("#buyers-list").innerHTML = list(b, bNear, ({ r, d }) =>
     `<li><span class="name">${esc(r.name)}</span><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${r.orders || 0} orders · Pin ${esc(r.pin)}</span><span class="dist">${fmt(d)}</span></li>`);
 }
