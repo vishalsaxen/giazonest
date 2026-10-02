@@ -41,6 +41,7 @@ document.querySelectorAll(".rules").forEach((ul) => {
 const authError = (e) => ({
   "auth/invalid-credential": "That email and password don't match. Check them or reset your password.",
   "auth/wrong-password": "That password is wrong.",
+  "auth/invalid-email": "That email doesn't look right. Check for typos.",
   "auth/too-many-requests": "Too many attempts. Wait a few minutes or reset your password.",
   "auth/network-request-failed": "Can't reach the server. Check your connection and try again.",
   "auth/requires-recent-login": "For security, sign out and sign in again, then change your password."
