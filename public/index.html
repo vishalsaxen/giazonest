@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GiaZoNest Admin</title>
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<main id="login-view" class="view">
+  <div class="auth">
+    <aside class="auth-side">
+      <div class="logo"><span class="mark">GZ</span>GiaZoNest</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <span class="role">● Super Admin console</span>
+        <h1>Where selling meets shopping.</h1>
+        <p>Manage every seller and buyer on the marketplace, by location and pin code.</p>
+      </div>
+      <p class="hint" style="color:inherit;opacity:.6">Restricted area. Only the super admin account can sign in here.</p>
+    </aside>
+
+    <section class="auth-main">
+      <!-- Sign in -->
+      <div id="step-signin" style="display:flex;flex-direction:column;gap:18px">
+        <div>
+          <h2>Sign in as Super Admin</h2>
+          <p class="sub">Use the super admin email and password.</p>
+        </div>
+        <form id="signin-form" novalidate>
+          <label for="si-email">Email
+            <input id="si-email" type="email" autocomplete="username" value="" placeholder="you@example.com" required>
+          </label>
+          <label for="si-pass">Password
+            <input id="si-pass" type="password" autocomplete="current-password" placeholder="••••••••" required>
+          </label>
+          <div class="row">
+            <label for="si-show" style="flex-direction:row;align-items:center;font-weight:500"><input id="si-show" type="checkbox"> Show password</label>
+            <button type="button" class="link" id="go-forgot">Forgot password?</button>
+          </div>
+          <div id="si-msg" class="msg" hidden></div>
+          <button class="btn" type="submit">Sign in</button>
+        </form>
+      </div>
+
+      <!-- Reset: request code -->
+      <div id="step-forgot" hidden style="display:flex;flex-direction:column;gap:18px">
+        <div>
+          <h2>Reset password</h2>
+          <p class="sub">We'll email you a link to choose a new password.</p>
+        </div>
+        <form id="forgot-form" novalidate>
+          <label for="fg-email">Super admin email
+            <input id="fg-email" type="email" required>
+          </label>
+          <div id="fg-msg" class="msg" hidden></div>
+          <div class="row">
+            <button type="button" class="link back">← Back to sign in</button>
+            <button class="btn" type="submit">Send reset link</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+</main>
+
+<!-- ============ LANDING ============ -->
+<main id="home-view" class="view" hidden>
+  <div class="wrap">
+    <header class="top">
+      <div class="logo"><span class="mark">GZ</span>GiaZoNest</div>
+      <div class="who">
+        <span class="badge">Super Admin</span>
+        <span class="hint" id="who-email"></span>
+        <button class="btn ghost small" id="open-change">Change password</button>
+        <button class="btn ghost small" id="sign-out">Sign out</button>
+      </div>
+    </header>
+
+    <section class="locbar" aria-labelledby="loc-title">
+      <div>
+        <h1 id="loc-title">Sellers and buyers near you</h1>
+        <div class="where" id="where">
+          Showing <span class="pin" id="cur-pin">110001</span> <span id="cur-place">Connaught Place, New Delhi</span>
+        </div>
+      </div>
+      <form class="loc-controls" id="pin-form" novalidate>
+        <label for="pin-input">Pin code
+          <input id="pin-input" type="text" inputmode="numeric" maxlength="6" placeholder="e.g. 400001" value="110001">
+        </label>
+        <button class="btn" type="submit">Search</button>
+        <button class="btn ghost" type="button" id="geo-btn">📍 Use my location</button>
+        <div id="loc-msg" class="hint" style="flex-basis:100%" aria-live="polite"></div>
+      </form>
+    </section>
+
+    <div class="split">
+      <section class="panel" aria-labelledby="sellers-h">
+        <div class="panel-head">
+          <h2 id="sellers-h">Sellers <span class="count" id="sellers-count">0</span></h2>
+          <button class="btn small" type="button" id="add-seller">+ Add seller</button>
+        </div>
+        <div class="stats" id="seller-stats"></div>
+        <ul class="list" id="sellers-list"></ul>
+      </section>
+      <section class="panel" aria-labelledby="buyers-h">
+        <div class="panel-head">
+          <h2 id="buyers-h">Buyers <span class="count" id="buyers-count">0</span></h2>
+          <button class="btn small ghost" type="button" id="seed-btn" hidden>Load example data</button>
+        </div>
+        <div class="stats" id="buyer-stats"></div>
+        <ul class="list" id="buyers-list"></ul>
+      </section>
+    </div>
+    <p class="example" id="data-note">Sellers and buyers are loaded from Firestore.</p>
+  </div>
+</main>
+
+<!-- Change password dialog -->
+<div class="overlay" id="change-dialog" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="cp-title">
+    <h2 id="cp-title" style="font-size:1.25rem">Change password</h2>
+    <form id="change-form" novalidate>
+      <label for="cp-current">Current password
+        <input id="cp-current" type="password" autocomplete="current-password" required>
+      </label>
+      <label for="cp-new">New password
+        <input id="cp-new" type="password" autocomplete="new-password" required>
+      </label>
+      <ul class="rules" data-for="cp-new"></ul>
+      <label for="cp-confirm">Confirm new password
+        <input id="cp-confirm" type="password" autocomplete="new-password" required>
+      </label>
+      <div id="cp-msg" class="msg" hidden></div>
+      <div class="row" style="justify-content:flex-end">
+        <button type="button" class="btn ghost" id="cp-cancel">Cancel</button>
+        <button class="btn" type="submit">Update password</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- Add seller dialog -->
+<div class="overlay" id="seller-dialog" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="as-title">
+    <h2 id="as-title" style="font-size:1.25rem">Add seller</h2>
+    <form id="seller-form" novalidate>
+      <label for="as-name">Shop name
+        <input id="as-name" type="text" required>
+      </label>
+      <label for="as-cat">Category
+        <input id="as-cat" type="text" placeholder="e.g. Groceries" required>
+      </label>
+      <label for="as-pin">Pin code
+        <input id="as-pin" type="text" inputmode="numeric" maxlength="6" required>
+      </label>
+      <div id="as-msg" class="msg" hidden></div>
+      <div class="row" style="justify-content:flex-end">
+        <button type="button" class="btn ghost" id="as-cancel">Cancel</button>
+        <button class="btn" type="submit">Add seller</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Setup notice, shown until firebase-config.js is filled in -->
+<div class="overlay" id="setup-dialog" hidden>
+  <div class="dialog">
+    <h2 style="font-size:1.25rem">Connect Firebase</h2>
+    <p class="sub">Paste your Firebase web config into <b>public/firebase-config.js</b> and reload. The README lists the steps.</p>
+  </div>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
