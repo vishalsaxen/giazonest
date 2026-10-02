@@ -3,6 +3,7 @@
 Where selling meets shopping. There are two pages:
 
 - **Admin console** (`index.html`): the super admin signs in, changes or resets the password, adds sellers, reviews KYC, and sees sellers and buyers by pin code or current location.
+- **Seller page** (`seller.html`): sellers create an account, fill in their shop details and KYC (ticking "Not available" for a PAN, GSTIN or bank account they don't have), and add products with up to 10 photos, a short description, price, discount, stock and category-specific details. "Sold 1" lowers the stock by one and counts the sale.
 - **Shop** (`shop.html`): shoppers create an account (name, user ID, mobile, email, pin code, password), sign in with email or user ID, set a pin code or use their live location, and find KYC-verified sellers nearby with WhatsApp, email and website contact buttons.
 
 It is a static website (HTML, CSS, JavaScript) that uses Firebase for login (Authentication) and data (Firestore).
@@ -14,6 +15,10 @@ It is a static website (HTML, CSS, JavaScript) that uses Firebase for login (Aut
 - `public/shop.html`, `public/shop.js`: the shopper sign-up, sign-in and seller search
 - `public/contacts.js`: seller email, WhatsApp and website checks, and the public seller record
 - `public/categories.js`: seller categories, sub-categories and types
+- `public/seller.html`, `public/seller.js`: seller sign-up, shop details, KYC and products
+- `public/kyc.js`: KYC number checks and the "Not available" option, shared by the admin console and the seller page
+- `public/product-fields.js`: the extra product details asked for in each category, and price helpers
+- `public/photos.js`: shrinks product photos in the browser before saving
 - `public/firebase-config.js`: your Firebase project's web config and the super admin email
 - `public/pincodes.js`: pin code locations and the example data
 - `firestore.rules`: who may read and write the database
@@ -32,6 +37,8 @@ It is a static website (HTML, CSS, JavaScript) that uses Firebase for login (Aut
 ## How shoppers see sellers
 
 Seller records hold KYC numbers, so shoppers can never read the `sellers` collection. Instead, each time the admin console loads it copies every **Verified** seller (name, category, pin code, location, email, WhatsApp, website, but no KYC numbers) into `publicSellers`, and removes sellers who are no longer verified. After approving or rejecting KYC, the shop shows the change the next time the console loads.
+
+Products of verified sellers are marked `live`, and the shop shows only live products. A seller's product can only be marked live while their shop is verified, and the admin console turns products on or off when it syncs. Product photos are shrunk in the browser (to about 200 KB each) and stored in Firestore as `productImages`, one document per photo, so the project stays on Firebase's free Spark plan. A seller who signs up keeps their record at `sellers/{uid}`: they can edit it, but can't approve themselves, and their KYC numbers lock once verified.
 
 Shopper profiles are saved in `buyers/{uid}`, so they appear in the admin Buyers list. `usernames/{userId}` maps each user ID to its email for sign-in.
 

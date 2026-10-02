@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GiaZoNest Seller</title>
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css?v=dev">
+</head>
+<body>
+
+<!-- ============ SIGN IN / CREATE ACCOUNT ============ -->
+<main id="auth-view" class="view">
+  <div class="auth">
+    <aside class="auth-side">
+      <div class="logo"><span class="mark">GZ</span>GiaZoNest</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <span class="role">● Sell on GiaZoNest</span>
+        <h1>Where selling meets shopping.</h1>
+        <p>Add your shop and products with photos, prices and stock. Once GiaZoNest verifies your KYC, shoppers near you can find them.</p>
+      </div>
+      <p class="hint" style="color:inherit;opacity:.6">Shopping instead? <a href="shop.html" style="color:inherit">Go to the shop</a>.</p>
+    </aside>
+
+    <section class="auth-main">
+      <div id="step-signin" class="stack">
+        <div>
+          <h2>Seller sign in</h2>
+          <p class="sub">New seller? <button type="button" class="link" id="go-signup">Create a seller account</button></p>
+        </div>
+        <form id="signin-form" novalidate>
+          <label for="si-email">Email
+            <input id="si-email" type="email" autocomplete="username" required>
+          </label>
+          <label for="si-pass">Password
+            <input id="si-pass" type="password" autocomplete="current-password" required>
+          </label>
+          <div class="row">
+            <label for="si-show" style="flex-direction:row;align-items:center;font-weight:500"><input id="si-show" type="checkbox"> Show password</label>
+            <button type="button" class="link" id="go-forgot">Forgot password?</button>
+          </div>
+          <div id="si-msg" class="msg" hidden></div>
+          <button class="btn" type="submit">Sign in</button>
+        </form>
+      </div>
+
+      <div id="step-signup" class="stack" hidden>
+        <div>
+          <h2>Create a seller account</h2>
+          <p class="sub">Already selling? <button type="button" class="link back">Sign in</button></p>
+        </div>
+        <form id="signup-form" novalidate>
+          <label for="su-owner">Your name *
+            <input id="su-owner" type="text" autocomplete="name" required>
+          </label>
+          <label for="su-email">Email *
+            <input id="su-email" type="email" autocomplete="email" required>
+          </label>
+          <label for="su-pass">Password *
+            <input id="su-pass" type="password" autocomplete="new-password" required>
+          </label>
+          <ul class="rules" data-for="su-pass"></ul>
+          <label for="su-confirm">Confirm password *
+            <input id="su-confirm" type="password" autocomplete="new-password" required>
+          </label>
+          <div id="su-msg" class="msg" hidden></div>
+          <button class="btn" type="submit">Create account</button>
+        </form>
+      </div>
+
+      <div id="step-forgot" class="stack" hidden>
+        <div>
+          <h2>Reset password</h2>
+          <p class="sub">We'll email you a link to choose a new password.</p>
+        </div>
+        <form id="forgot-form" novalidate>
+          <label for="fg-email">Email
+            <input id="fg-email" type="email" autocomplete="email" required>
+          </label>
+          <div id="fg-msg" class="msg" hidden></div>
+          <div class="row">
+            <button type="button" class="link back">← Back to sign in</button>
+            <button class="btn" type="submit">Send reset link</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+</main>
+
+<!-- ============ SELLER DASHBOARD ============ -->
+<main id="seller-view" class="view" hidden>
+  <div class="wrap">
+    <header class="top">
+      <div class="logo"><span class="mark">GZ</span>GiaZoNest <span class="badge">Seller</span></div>
+      <div class="who">
+        <span class="hint" id="who-name"></span>
+        <button class="btn ghost small" id="sign-out">Sign out</button>
+      </div>
+    </header>
+
+    <div class="msg status-banner" id="status-banner" hidden></div>
+
+    <section class="panel" aria-labelledby="shop-h">
+      <div class="panel-head">
+        <h2 id="shop-h">Your shop</h2>
+        <span class="chip" id="shop-status"></span>
+      </div>
+      <form id="shop-form" class="stack" novalidate>
+        <div class="kyc-grid">
+          <label for="sh-name" style="grid-column:1/-1">Shop name *
+            <input id="sh-name" type="text" maxlength="80" required>
+          </label>
+          <label for="sh-cat">Category *
+            <select id="sh-cat" required><option value="">Select category</option></select>
+          </label>
+          <label for="sh-sub">Sub-category *
+            <select id="sh-sub" required disabled><option value="">Select a category first</option></select>
+          </label>
+          <label for="sh-type" id="sh-type-label" hidden>Type *
+            <select id="sh-type"><option value="">Select type</option></select>
+          </label>
+          <label for="sh-pin">Pin code *
+            <input id="sh-pin" type="text" inputmode="numeric" maxlength="6" placeholder="e.g. 400001" required>
+          </label>
+          <div class="geo-row" style="grid-column:1/-1">
+            <button class="btn ghost small" type="button" id="sh-geo">📍 Use my shop's location</button>
+            <span class="hint" id="sh-geo-msg">Helps shoppers nearby find you. Stand at your shop when you use it.</span>
+          </div>
+          <label for="sh-email">Email *
+            <input id="sh-email" type="email" autocomplete="email" required>
+          </label>
+          <label for="sh-whatsapp">WhatsApp number *
+            <input id="sh-whatsapp" type="tel" inputmode="numeric" maxlength="10" placeholder="9876543210" required>
+          </label>
+          <label for="sh-website" style="grid-column:1/-1">Website <span class="hint">optional</span>
+            <input id="sh-website" type="url" placeholder="https://">
+          </label>
+        </div>
+
+        <fieldset class="kyc-box" id="kyc-box">
+          <legend>KYC details</legend>
+          <p class="hint" id="kyc-help">GiaZoNest checks these before your shop goes live. If you don't have one, tick "Not available".</p>
+          <div class="kyc-grid">
+            <div class="kyc-field">
+              <label for="sk-pan">PAN
+                <input id="sk-pan" type="text" maxlength="10" autocomplete="off" placeholder="ABCDE1234F">
+              </label>
+              <label class="na" for="sk-pan-na"><input type="checkbox" id="sk-pan-na"> Not available</label>
+            </div>
+            <div class="kyc-field">
+              <label for="sk-gstin">GSTIN
+                <input id="sk-gstin" type="text" maxlength="15" autocomplete="off" placeholder="27ABCDE1234F1Z5">
+              </label>
+              <label class="na" for="sk-gstin-na"><input type="checkbox" id="sk-gstin-na"> Not available</label>
+            </div>
+            <div class="kyc-field">
+              <label for="sk-account">Bank account number
+                <input id="sk-account" type="text" inputmode="numeric" maxlength="18" autocomplete="off">
+              </label>
+              <label class="na" for="sk-account-na"><input type="checkbox" id="sk-account-na"> Not available</label>
+            </div>
+            <label for="sk-ifsc">IFSC
+              <input id="sk-ifsc" type="text" maxlength="11" autocomplete="off" placeholder="SBIN0001234">
+            </label>
+            <label for="sk-aadhaarLast4">Aadhaar, last 4 digits <span class="hint">optional</span>
+              <input id="sk-aadhaarLast4" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234">
+            </label>
+          </div>
+        </fieldset>
+
+        <div id="sh-msg" class="msg" hidden></div>
+        <div class="row">
+          <span class="hint">* required</span>
+          <button class="btn" type="submit" id="sh-save">Save shop details</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel" id="products-panel" aria-labelledby="products-h" hidden>
+      <div class="panel-head">
+        <h2 id="products-h">Products <span class="count" id="product-count">0</span></h2>
+        <button class="btn small" type="button" id="add-product">+ Add product</button>
+      </div>
+      <p class="hint" id="products-note"></p>
+      <ul class="products" id="product-list"></ul>
+    </section>
+  </div>
+</main>
+
+<!-- Product dialog -->
+<div class="overlay" id="product-dialog" hidden>
+  <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="pd-title">
+    <h2 id="pd-title" style="font-size:1.25rem">Add a product</h2>
+    <form id="product-form" class="stack" novalidate>
+      <label for="pd-name">Product name *
+        <input id="pd-name" type="text" maxlength="80" placeholder="e.g. Maggi noodles 70 g" required>
+      </label>
+      <div class="kyc-grid">
+        <label for="pd-sub">Sub-category *
+          <select id="pd-sub" required></select>
+        </label>
+        <label for="pd-type" id="pd-type-label" hidden>Type *
+          <select id="pd-type"></select>
+        </label>
+      </div>
+      <div class="kyc-grid" id="pd-fields"></div>
+      <label for="pd-desc">Short description
+        <textarea id="pd-desc" rows="3" maxlength="500" placeholder="What it is, who it's for, anything special"></textarea>
+        <span class="hint"><span id="pd-desc-count">0</span> of 500 characters</span>
+      </label>
+      <div class="price-grid">
+        <label for="pd-price">Price (₹) *
+          <input id="pd-price" type="number" inputmode="decimal" min="0" step="0.01" placeholder="20" required>
+        </label>
+        <label for="pd-discount">Discount (₹)
+          <input id="pd-discount" type="number" inputmode="decimal" min="0" step="0.01" placeholder="2">
+        </label>
+        <div class="sp-box"><span class="hint">Selling price</span><b id="pd-sp">₹0</b></div>
+      </div>
+      <div class="kyc-grid">
+        <label for="pd-stock"><span><span id="pd-stock-label">Items in stock</span> *</span>
+          <input id="pd-stock" type="number" inputmode="numeric" min="0" step="1" placeholder="20" required>
+        </label>
+        <div class="sp-box"><span class="hint">Sold so far</span><b id="pd-sold">0</b></div>
+      </div>
+      <div class="stack" style="gap:8px">
+        <div class="row">
+          <span style="font-weight:600;font-size:.88rem">Photos <span class="hint" id="pd-photo-count">0 of 10</span></span>
+          <label class="btn ghost small" for="pd-photos" id="pd-photo-btn">+ Add photos
+            <input id="pd-photos" type="file" accept="image/*" multiple hidden>
+          </label>
+        </div>
+        <ul class="photo-grid" id="pd-previews"></ul>
+        <p class="hint">The first photo is the cover. Photos are resized to save space.</p>
+      </div>
+      <div id="pd-msg" class="msg" hidden></div>
+      <div class="row">
+        <button type="button" class="btn ghost danger" id="pd-delete" hidden>Delete product</button>
+        <div class="row" style="gap:8px;margin-left:auto">
+          <button type="button" class="btn ghost" id="pd-cancel">Cancel</button>
+          <button type="submit" class="btn" id="pd-save">Save product</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="overlay" id="setup-dialog" hidden>
+  <div class="dialog">
+    <h2 style="font-size:1.25rem">The seller page isn't connected yet</h2>
+    <p class="sub">Fill in public/firebase-config.js and reload.</p>
+  </div>
+</div>
+
+<script type="module" src="seller.js?v=dev"></script>
+</body>
+</html>

@@ -4,12 +4,14 @@ import {
   sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, updatePassword
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, collection, getDocs, addDoc, updateDoc, writeBatch, doc, serverTimestamp
+  getFirestore, collection, getDocs, addDoc, updateDoc, writeBatch, doc, serverTimestamp, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig, SUPER_ADMIN_EMAIL } from "./firebase-config.js?v=dev";
 import { PINS, EXAMPLE_SELLERS, EXAMPLE_BUYERS } from "./pincodes.js?v=dev";
 import { CATEGORIES, subsOf, typesOf } from "./categories.js?v=dev";
 import { checkContact, publicSeller } from "./contacts.js?v=dev";
+import { checkKyc, readKyc, fillKyc, wireKycSkips } from "./kyc.js?v=dev";
+import { sellingPrice, rupees, itemWord, fieldsFor } from "./product-fields.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
 const ADMIN = SUPER_ADMIN_EMAIL.toLowerCase();
@@ -102,7 +104,7 @@ $("#change-form").onsubmit = async (e) => {
 $("#sign-out").onclick = () => signOut(auth);
 
 // ---------- Sellers and buyers
-let sellers = [], buyers = [], current = { origin: PINS["110001"], label: PINS["110001"].place, pin: "110001" };
+let sellers = [], buyers = [], products = [], current = { origin: PINS["110001"], label: PINS["110001"].place, pin: "110001" };
 const RADIUS = 50; // km counted as "near"
 const chip = { "Verified": "ok", "Active": "ok", "Pending KYC": "warn", "New": "warn", "Suspended": "bad", "Flagged": "bad", "KYC Rejected": "bad" };
 const km = (a, b) => {
@@ -117,9 +119,10 @@ const stat = (n, t) => `<div class="stat"><b>${n.toLocaleString("en-IN")}</b><sp
 async function load() {
   $("#data-note").textContent = "Loading sellers and buyers…";
   try {
-    const [s, b] = await Promise.all([getDocs(collection(db, "sellers")), getDocs(collection(db, "buyers"))]);
+    const [s, b, p] = await Promise.all([getDocs(collection(db, "sellers")), getDocs(collection(db, "buyers")), getDocs(collection(db, "products"))]);
     sellers = s.docs.map((d) => ({ id: d.id, ...d.data() }));
     buyers = b.docs.map((d) => ({ id: d.id, ...d.data() }));
+    products = p.docs.map((d) => ({ id: d.id, ...d.data() }));
     await syncPublic();
     const hasExamples = [...sellers, ...buyers].some((r) => r.example);
     $("#seed-btn").hidden = !(hasExamples || sellers.length + buyers.length === 0);
@@ -133,23 +136,40 @@ async function load() {
   }
 }
 
-// Shoppers only see the publicSellers collection: Verified sellers, without KYC details.
+// Writes in batches of up to 400, since one Firestore batch holds at most 500 writes.
+async function commitAll(ops) {
+  for (let i = 0; i < ops.length; i += 400) {
+    const batch = writeBatch(db);
+    ops.slice(i, i + 400).forEach((op) => op(batch));
+    await batch.commit();
+  }
+}
+
+// Shoppers only see the publicSellers collection (Verified sellers, without KYC details)
+// and products marked live, which are the products of Verified sellers.
 async function syncPublic() {
   const pub = await getDocs(collection(db, "publicSellers"));
   const stable = (o) => JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));
   const have = new Map(pub.docs.map((d) => [d.id, stable(d.data())]));
-  const batch = writeBatch(db);
-  let changes = 0;
+  const ops = [], verified = new Set();
   for (const r of sellers) {
     if (r.status === "Verified") {
+      verified.add(r.id);
       const data = publicSeller(r);
-      if (have.get(r.id) !== stable(data)) { batch.set(doc(db, "publicSellers", r.id), data); changes++; }
+      if (have.get(r.id) !== stable(data)) ops.push((b) => b.set(doc(db, "publicSellers", r.id), data));
       have.delete(r.id);
     }
   }
-  for (const id of have.keys()) { batch.delete(doc(db, "publicSellers", id)); changes++; }
-  if (changes) await batch.commit();
+  for (const id of have.keys()) ops.push((b) => b.delete(doc(db, "publicSellers", id)));
+  for (const p of products) {
+    const live = verified.has(p.sellerId);
+    if (p.live !== live) { ops.push((b) => b.update(doc(db, "products", p.id), { live })); p.live = live; }
+  }
+  await commitAll(ops);
 }
+
+const fieldLabel = (p, key) => fieldsFor(p.category, p.subCategory).find((f) => f.key === key)?.label || key;
+const countProducts = (sellerId) => products.filter((p) => p.sellerId === sellerId).length;
 
 function render() {
   const { origin, label, pin } = current;
@@ -166,7 +186,7 @@ function render() {
   const list = (all, few, html) => few.length ? few.map(html).join("")
     : `<li class="empty" style="display:block">None within ${RADIUS} km.${all[0] && all[0].d !== Infinity ? ` The nearest is ${esc(all[0].r.name)}, ${fmt(all[0].d)} away.` : ""}</li>`;
   $("#sellers-list").innerHTML = list(s, sNear, ({ r, d }) =>
-    `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${picked.has(r.id) ? " checked" : ""}><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · Pin ${esc(r.pin)}</span><span class="dist">${fmt(d)}</span><button type="button" class="btn ghost small kyc-btn" data-seller="${esc(r.id)}">Review KYC</button></li>`);
+    `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${picked.has(r.id) ? " checked" : ""}><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · Pin ${esc(r.pin)}${countProducts(r.id) ? ` · ${countProducts(r.id)} products` : ""}${r.ownerUid ? " · signed up" : ""}</span><span class="dist">${fmt(d)}</span><button type="button" class="btn ghost small kyc-btn" data-seller="${esc(r.id)}">Review KYC</button></li>`);
   shownSellers = sNear.map((x) => x.r.id);
   syncPicks();
   $("#buyers-list").innerHTML = list(b, bNear, ({ r, d }) =>
@@ -213,12 +233,15 @@ $("#del-yes").onclick = async () => {
   $("#del-yes").disabled = true;
   show(m, `Deleting ${ids.length}…`, "");
   try {
-    // A batch holds up to 500 writes; each seller takes two (its record and its shop listing).
-    for (let i = 0; i < ids.length; i += 200) {
-      const batch = writeBatch(db);
-      ids.slice(i, i + 200).forEach((id) => { batch.delete(doc(db, "sellers", id)); batch.delete(doc(db, "publicSellers", id)); });
-      await batch.commit();
+    // Each seller's record, shop listing, products and product photos all go.
+    const ops = [];
+    for (const id of ids) {
+      ops.push((b) => b.delete(doc(db, "sellers", id)), (b) => b.delete(doc(db, "publicSellers", id)));
+      products.filter((p) => p.sellerId === id).forEach((p) => ops.push((b) => b.delete(doc(db, "products", p.id))));
+      const imgs = await getDocs(query(collection(db, "productImages"), where("sellerId", "==", id)));
+      imgs.docs.forEach((d) => ops.push((b) => b.delete(d.ref)));
     }
+    await commitAll(ops);
     picked.clear();
     closeDelete();
     await load();
@@ -297,14 +320,7 @@ $("#seller-form").onsubmit = async (e) => {
 // ---------- Seller KYC
 const kd = $("#kyc-dialog");
 let kycSeller = null;
-const KYC_RULES = {
-  "kyc-pan": [/^[A-Z]{5}[0-9]{4}[A-Z]$/, "PAN should look like ABCDE1234F."],
-  "kyc-gstin": [/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/, "GSTIN should be 15 characters, like 27ABCDE1234F1Z5."],
-  "kyc-account": [/^[0-9]{9,18}$/, "Bank account number should be 9 to 18 digits."],
-  "kyc-ifsc": [/^[A-Z]{4}0[A-Z0-9]{6}$/, "IFSC should look like SBIN0001234."],
-  "kyc-aadhaar": [/^[0-9]{4}$/, "Enter only the last 4 digits of Aadhaar."]
-};
-const kycVal = (id) => $("#" + id).value.trim().toUpperCase();
+wireKycSkips("kyc-");
 const closeKyc = () => { kd.hidden = true; $("#kyc-form").reset(); $("#kyc-msg").hidden = true; kycSeller = null; };
 $("#sellers-list").addEventListener("click", (e) => {
   const id = e.target.closest("[data-seller]")?.dataset.seller;
@@ -315,12 +331,22 @@ $("#sellers-list").addEventListener("click", (e) => {
   $("#kyc-sub").textContent = `${kycSeller.category || ""}${kycSeller.subCategory ? " › " + kycSeller.subCategory : ""}${kycSeller.type ? " › " + kycSeller.type : ""} · Pin ${kycSeller.pin}`;
   $("#kyc-status").textContent = kycSeller.status;
   $("#kyc-status").className = "chip " + (chip[kycSeller.status] || "warn");
-  $("#kyc-pan").value = k.pan || ""; $("#kyc-gstin").value = k.gstin || "";
-  $("#kyc-account").value = k.account || ""; $("#kyc-ifsc").value = k.ifsc || "";
-  $("#kyc-aadhaar").value = k.aadhaarLast4 || ""; $("#kyc-note").value = kycSeller.kycNote || "";
+  fillKyc("kyc-", k); $("#kyc-note").value = kycSeller.kycNote || "";
   $("#kyc-email").value = kycSeller.email || ""; $("#kyc-whatsapp").value = kycSeller.whatsapp || ""; $("#kyc-website").value = kycSeller.website || "";
   const when = kycSeller.kycReviewedAt?.toDate?.();
   $("#kyc-review").textContent = when ? `Last reviewed ${when.toLocaleString("en-IN")} by ${kycSeller.kycReviewedBy}.` : "Not reviewed yet.";
+  const mine = products.filter((p) => p.sellerId === kycSeller.id);
+  $("#kyc-product-count").textContent = mine.length;
+  $("#kyc-products").innerHTML = mine.length ? mine.map((p) => `<li class="product">
+      ${p.thumb ? `<img src="${p.thumb}" alt="" class="product-thumb">` : `<div class="product-thumb empty-thumb">No photo</div>`}
+      <div class="product-main">
+        <span class="name">${esc(p.name)}</span>
+        <span class="price">${rupees(sellingPrice(p))}${p.discount ? ` <s>${rupees(p.price)}</s> <span class="off">${rupees(p.discount)} off</span>` : ""}</span>
+        <span class="meta">${esc(p.subCategory || "")}${p.type ? " › " + esc(p.type) : ""} · ${p.stock} ${itemWord(p.category, p.subCategory)}s left · ${p.sold || 0} sold · ${p.photoCount || 0} photos</span>
+        ${p.description ? `<span class="meta">${esc(p.description)}</span>` : ""}
+        ${Object.keys(p.details || {}).length ? `<span class="meta">${Object.entries(p.details).map(([k, v]) => `${esc(fieldLabel(p, k))}: ${esc(v)}`).join(" · ")}</span>` : ""}
+      </div>
+    </li>`).join("") : `<li class="empty">${kycSeller.ownerUid ? "No products added yet." : "This seller was added by you, so they can't sign in to add products."}</li>`;
   kd.hidden = false; $("#kyc-pan").focus();
 });
 $("#kyc-cancel").onclick = closeKyc;
@@ -328,17 +354,13 @@ kd.addEventListener("keydown", (e) => { if (e.key === "Escape") closeKyc(); });
 
 async function saveKyc(action) {
   const m = $("#kyc-msg");
-  const kyc = { pan: kycVal("kyc-pan"), gstin: kycVal("kyc-gstin"), account: kycVal("kyc-account"), ifsc: kycVal("kyc-ifsc"), aadhaarLast4: kycVal("kyc-aadhaar") };
-  for (const [id, [re, text]] of Object.entries(KYC_RULES)) {
-    const v = kycVal(id);
-    if (v && !re.test(v)) return show(m, text, "bad");
-  }
+  const kyc = readKyc("kyc-");
+  const badKyc = checkKyc(kyc, action === "approve");
+  if (badKyc) return show(m, action === "approve" ? `To approve: ${badKyc[0].toLowerCase()}${badKyc.slice(1)}` : badKyc, "bad");
   const contact = { email: $("#kyc-email").value.trim().toLowerCase(), whatsapp: $("#kyc-whatsapp").value.trim(), website: $("#kyc-website").value.trim() };
   const badContact = checkContact(contact, action !== "approve");
   if (badContact) return show(m, badContact, "bad");
   const note = $("#kyc-note").value.trim();
-  if (action === "approve" && !(kyc.pan && kyc.account && kyc.ifsc))
-    return show(m, "To approve, fill in PAN, bank account number and IFSC.", "bad");
   if (action === "reject" && !note) return show(m, "Write a reason in the note so the seller knows what to fix.", "bad");
   const update = { kyc, kycNote: note, ...contact };
   if (action !== "save") Object.assign(update, {
