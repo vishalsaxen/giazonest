@@ -15,7 +15,9 @@ if (firebaseConfig.apiKey.startsWith("PASTE")) {
   $("#setup-dialog").hidden = false;
   throw new Error("Fill in public/firebase-config.js");
 }
-const app = initializeApp(firebaseConfig);
+// A separately named app keeps the shopper's sign-in apart from the admin console's,
+// so signing in on one page never signs the other out (even in another tab).
+const app = initializeApp(firebaseConfig, "shop");
 const auth = getAuth(app);
 const db = getFirestore(app);
 
