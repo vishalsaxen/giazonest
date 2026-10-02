@@ -33,7 +33,15 @@ npx serve public        # or: python3 -m http.server -d public 8080
 
 Open the address it prints and sign in with the super admin account. On an empty database, click **Load example data** to fill in sample sellers and buyers.
 
-## Put it online (Firebase Hosting)
+## Put it online (GitHub Pages)
+
+Every push to `main` publishes `public/` to https://vishalsaxen.github.io/giazonest/ through `.github/workflows/pages.yml`.
+
+One-time setup:
+1. GitHub repo **Settings > Pages > Source**: choose **GitHub Actions**.
+2. Firebase **Authentication > Settings > Authorized domains**: add `vishalsaxen.github.io`, so sign-in works from that address.
+
+## Or use Firebase Hosting
 
 ```bash
 npm install -g firebase-tools
