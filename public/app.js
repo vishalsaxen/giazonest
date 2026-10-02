@@ -166,10 +166,65 @@ function render() {
   const list = (all, few, html) => few.length ? few.map(html).join("")
     : `<li class="empty" style="display:block">None within ${RADIUS} km.${all[0] && all[0].d !== Infinity ? ` The nearest is ${esc(all[0].r.name)}, ${fmt(all[0].d)} away.` : ""}</li>`;
   $("#sellers-list").innerHTML = list(s, sNear, ({ r, d }) =>
-    `<li><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · Pin ${esc(r.pin)}</span><span class="dist">${fmt(d)}</span><button type="button" class="btn ghost small kyc-btn" data-seller="${esc(r.id)}">Review KYC</button></li>`);
+    `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${picked.has(r.id) ? " checked" : ""}><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · Pin ${esc(r.pin)}</span><span class="dist">${fmt(d)}</span><button type="button" class="btn ghost small kyc-btn" data-seller="${esc(r.id)}">Review KYC</button></li>`);
+  shownSellers = sNear.map((x) => x.r.id);
+  syncPicks();
   $("#buyers-list").innerHTML = list(b, bNear, ({ r, d }) =>
     `<li><span class="name">${esc(r.name)}</span><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${r.orders || 0} orders · Pin ${esc(r.pin || "not set")}${r.phone ? " · " + esc(r.phone) : ""}</span><span class="dist">${fmt(d)}</span></li>`);
 }
+
+// ---------- Select and delete sellers
+const picked = new Set();
+let shownSellers = [];
+const dd = $("#delete-dialog");
+function syncPicks() {
+  for (const id of [...picked]) if (!sellers.some((r) => r.id === id)) picked.delete(id);
+  const n = picked.size, all = $("#pick-all");
+  $("#delete-picked").disabled = !n;
+  $("#delete-picked").textContent = n ? `Delete selected (${n})` : "Delete selected";
+  const shownPicked = shownSellers.filter((id) => picked.has(id)).length;
+  all.checked = shownSellers.length > 0 && shownPicked === shownSellers.length;
+  all.indeterminate = shownPicked > 0 && shownPicked < shownSellers.length;
+  all.disabled = !shownSellers.length;
+}
+$("#sellers-list").addEventListener("change", (e) => {
+  const id = e.target.dataset?.pick;
+  if (!id) return;
+  e.target.checked ? picked.add(id) : picked.delete(id);
+  syncPicks();
+});
+$("#pick-all").onchange = (e) => {
+  shownSellers.forEach((id) => (e.target.checked ? picked.add(id) : picked.delete(id)));
+  document.querySelectorAll("#sellers-list [data-pick]").forEach((b) => (b.checked = e.target.checked));
+  syncPicks();
+};
+const closeDelete = () => { dd.hidden = true; $("#del-msg").hidden = true; $("#del-yes").disabled = false; };
+$("#delete-picked").onclick = () => {
+  const rows = sellers.filter((r) => picked.has(r.id));
+  if (!rows.length) return;
+  $("#del-title").textContent = `Are you sure you want to delete ${rows.length} seller${rows.length === 1 ? "" : "s"}?`;
+  $("#del-names").innerHTML = rows.map((r) => `<li>${esc(r.name)} <span class="hint">Pin ${esc(r.pin)}</span></li>`).join("");
+  dd.hidden = false; $("#del-no").focus();
+};
+$("#del-no").onclick = closeDelete;
+dd.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDelete(); });
+$("#del-yes").onclick = async () => {
+  const ids = [...picked], m = $("#del-msg");
+  $("#del-yes").disabled = true;
+  show(m, `Deleting ${ids.length}…`, "");
+  try {
+    // A batch holds up to 500 writes; each seller takes two (its record and its shop listing).
+    for (let i = 0; i < ids.length; i += 200) {
+      const batch = writeBatch(db);
+      ids.slice(i, i + 200).forEach((id) => { batch.delete(doc(db, "sellers", id)); batch.delete(doc(db, "publicSellers", id)); });
+      await batch.commit();
+    }
+    picked.clear();
+    closeDelete();
+    await load();
+    $("#data-note").textContent = `Deleted ${ids.length} seller${ids.length === 1 ? "" : "s"}. ` + $("#data-note").textContent;
+  } catch (err) { $("#del-yes").disabled = false; show(m, `Couldn't delete: ${err.message}`, "bad"); }
+};
 
 // Pin code search: use the known pin table, else the first record with that pin
 $("#pin-form").onsubmit = (e) => {
