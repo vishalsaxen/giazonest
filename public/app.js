@@ -118,7 +118,9 @@ async function load() {
     const [s, b] = await Promise.all([getDocs(collection(db, "sellers")), getDocs(collection(db, "buyers"))]);
     sellers = s.docs.map((d) => ({ id: d.id, ...d.data() }));
     buyers = b.docs.map((d) => ({ id: d.id, ...d.data() }));
-    $("#seed-btn").hidden = sellers.length + buyers.length > 0;
+    const hasExamples = [...sellers, ...buyers].some((r) => r.example);
+    $("#seed-btn").hidden = !(hasExamples || sellers.length + buyers.length === 0);
+    $("#seed-btn").textContent = hasExamples ? "Refresh example data" : "Load example data";
     $("#data-note").textContent = sellers.length + buyers.length
       ? `${sellers.length} sellers and ${buyers.length} buyers in the database.`
       : "The database is empty. Add a seller, or load the example data.";
@@ -204,9 +206,11 @@ $("#seller-form").onsubmit = async (e) => {
   } catch (err) { show(m, `Couldn't save: ${err.message}`, "bad"); }
 };
 
-// One-time example data for an empty database
+// Example data: replaces any earlier example rows; real sellers and buyers are never touched
 $("#seed-btn").onclick = async () => {
   const batch = writeBatch(db);
+  sellers.filter((r) => r.example).forEach((r) => batch.delete(doc(db, "sellers", r.id)));
+  buyers.filter((r) => r.example).forEach((r) => batch.delete(doc(db, "buyers", r.id)));
   const put = (col, rows) => rows.forEach((r) => batch.set(doc(collection(db, col)),
     { ...r, lat: PINS[r.pin].lat, lng: PINS[r.pin].lng, example: true, createdAt: serverTimestamp() }));
   put("sellers", EXAMPLE_SELLERS);
