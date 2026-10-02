@@ -10,4 +10,4 @@ export const firebaseConfig = {
 };
 
 // The one account allowed into the console. Must match the email in firestore.rules.
-export const SUPER_ADMIN_EMAIL = "admin@giazonest.com";
+export const SUPER_ADMIN_EMAIL = "vishalsaxen@gmail.com";

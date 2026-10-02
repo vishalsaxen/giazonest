@@ -5,7 +5,7 @@ service cloud.firestore {
     // SUPER_ADMIN_EMAIL in public/firebase-config.js.
     function isSuperAdmin() {
       return request.auth != null
-        && request.auth.token.email == 'admin@giazonest.com';
+        && request.auth.token.email == 'vishalsaxen@gmail.com';
     }
 
     match /sellers/{id} {

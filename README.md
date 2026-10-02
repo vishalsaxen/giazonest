@@ -20,7 +20,7 @@ It is a static website (HTML, CSS, JavaScript) that uses Firebase for login (Aut
 3. **Authentication** > Users > **Add user**: enter the super admin email and a strong password.
 4. **Firestore Database** > Create database (production mode, region `asia-south1` for India).
 5. **Project settings** > Your apps > add a **Web** app. Copy the `firebaseConfig` values into `public/firebase-config.js`.
-6. If your super admin email is not `admin@giazonest.com`, change it in both `public/firebase-config.js` and `firestore.rules`.
+6. To change the super admin email, edit it in both `public/firebase-config.js` and `firestore.rules`.
 7. Publish the rules: paste `firestore.rules` into Firestore > Rules and click Publish, or run `firebase deploy --only firestore:rules`.
 
 ## Run it locally
