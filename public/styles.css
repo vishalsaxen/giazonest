@@ -128,3 +128,4 @@ input:focus { border-color: var(--brand); outline: none; box-shadow: 0 0 0 3px c
 .kyc-grid input { text-transform: uppercase; }
 .btn.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
 @media (max-width: 560px) { .kyc-grid { grid-template-columns: 1fr; } }
+.kyc-btn { grid-column: 2; justify-self: end; }
