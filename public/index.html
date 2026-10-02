@@ -153,8 +153,11 @@
       <label for="as-name">Shop name
         <input id="as-name" type="text" required>
       </label>
-      <label for="as-cat">Category
-        <input id="as-cat" type="text" placeholder="e.g. Groceries" required>
+      <label for="as-cat">Seller category *
+        <select id="as-cat" required><option value="">Select category</option></select>
+      </label>
+      <label for="as-sub">Sub-category *
+        <select id="as-sub" required disabled><option value="">Select a category first</option></select>
       </label>
       <label for="as-pin">Pin code
         <input id="as-pin" type="text" inputmode="numeric" maxlength="6" required>
