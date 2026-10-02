@@ -1,6 +1,9 @@
 # GiaZoNest
 
-Where selling meets shopping. This is the super admin console: sign in, change or reset the password, and see sellers and buyers by pin code or your current location.
+Where selling meets shopping. There are two pages:
+
+- **Admin console** (`index.html`): the super admin signs in, changes or resets the password, adds sellers, reviews KYC, and sees sellers and buyers by pin code or current location.
+- **Shop** (`shop.html`): shoppers create an account (name, user ID, mobile, email, pin code, password), sign in with email or user ID, set a pin code or use their live location, and find KYC-verified sellers nearby with WhatsApp, email and website contact buttons.
 
 It is a static website (HTML, CSS, JavaScript) that uses Firebase for login (Authentication) and data (Firestore).
 
@@ -8,6 +11,9 @@ It is a static website (HTML, CSS, JavaScript) that uses Firebase for login (Aut
 
 - `public/index.html`: the login page and the landing page
 - `public/app.js`: login, password change and reset, sellers and buyers
+- `public/shop.html`, `public/shop.js`: the shopper sign-up, sign-in and seller search
+- `public/contacts.js`: seller email, WhatsApp and website checks, and the public seller record
+- `public/categories.js`: seller categories, sub-categories and types
 - `public/firebase-config.js`: your Firebase project's web config and the super admin email
 - `public/pincodes.js`: pin code locations and the example data
 - `firestore.rules`: who may read and write the database
@@ -22,6 +28,12 @@ It is a static website (HTML, CSS, JavaScript) that uses Firebase for login (Aut
 5. **Project settings** > Your apps > add a **Web** app. Copy the `firebaseConfig` values into `public/firebase-config.js`.
 6. To change the super admin email, edit it in both `public/firebase-config.js` and `firestore.rules`.
 7. Publish the rules: paste `firestore.rules` into Firestore > Rules and click Publish, or run `firebase deploy --only firestore:rules`.
+
+## How shoppers see sellers
+
+Seller records hold KYC numbers, so shoppers can never read the `sellers` collection. Instead, each time the admin console loads it copies every **Verified** seller (name, category, pin code, location, email, WhatsApp, website, but no KYC numbers) into `publicSellers`, and removes sellers who are no longer verified. After approving or rejecting KYC, the shop shows the change the next time the console loads.
+
+Shopper profiles are saved in `buyers/{uid}`, so they appear in the admin Buyers list. `usernames/{userId}` maps each user ID to its email for sign-in.
 
 ## Run it locally
 

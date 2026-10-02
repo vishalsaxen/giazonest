@@ -21,6 +21,7 @@
         <h1>Where selling meets shopping.</h1>
         <p>Manage every seller and buyer on the marketplace, by location and pin code.</p>
       </div>
+      <p class="hint" style="color:inherit;opacity:.8">Shopping? <a href="shop.html" style="color:inherit">Go to the GiaZoNest shop</a>.</p>
       <p class="hint" style="color:inherit;opacity:.6">Restricted area. Only the super admin account can sign in here.</p>
     </aside>
 
@@ -150,7 +151,7 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="as-title">
     <h2 id="as-title" style="font-size:1.25rem">Add seller</h2>
     <form id="seller-form" novalidate>
-      <label for="as-name">Shop name
+      <label for="as-name">Shop name *
         <input id="as-name" type="text" required>
       </label>
       <label for="as-cat">Seller category *
@@ -162,8 +163,17 @@
       <label for="as-type" id="as-type-label" hidden>Type *
         <select id="as-type"><option value="">Select type</option></select>
       </label>
-      <label for="as-pin">Pin code
+      <label for="as-pin">Pin code *
         <input id="as-pin" type="text" inputmode="numeric" maxlength="6" required>
+      </label>
+      <label for="as-email">Email *
+        <input id="as-email" type="email" autocomplete="off" placeholder="shop@example.com" required>
+      </label>
+      <label for="as-whatsapp">WhatsApp number *
+        <input id="as-whatsapp" type="tel" inputmode="numeric" maxlength="10" placeholder="10-digit mobile number" required>
+      </label>
+      <label for="as-website">Website <span class="hint">optional</span>
+        <input id="as-website" type="url" placeholder="https://">
       </label>
       <div id="as-msg" class="msg" hidden></div>
       <div class="row" style="justify-content:flex-end">
@@ -198,6 +208,17 @@
         </label>
         <label for="kyc-aadhaar">Aadhaar, last 4 digits
           <input id="kyc-aadhaar" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234">
+        </label>
+      </div>
+      <div class="kyc-grid">
+        <label for="kyc-email">Email *
+          <input id="kyc-email" type="email" autocomplete="off">
+        </label>
+        <label for="kyc-whatsapp">WhatsApp number *
+          <input id="kyc-whatsapp" type="tel" inputmode="numeric" maxlength="10" autocomplete="off">
+        </label>
+        <label for="kyc-website" style="grid-column:1/-1">Website <span class="hint">optional</span>
+          <input id="kyc-website" type="url" placeholder="https://">
         </label>
       </div>
       <label for="kyc-note">Note to seller <span class="hint">required when rejecting</span>
