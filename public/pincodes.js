@@ -12,17 +12,19 @@ export const PINS = {
 
 // Example rows written by "Load example data" (marked example: true in Firestore).
 export const EXAMPLE_SELLERS = [
-  { name: "Sharma Handlooms", category: "Textiles", pin: "110001", status: "Verified" },
-  { name: "Chandni Spice Co.", category: "Groceries", pin: "110001", status: "Verified" },
-  { name: "Delhi Gadget Hub", category: "Electronics", pin: "110001", status: "Pending KYC" },
-  { name: "Cyber City Bakes", category: "Food", pin: "122001", status: "Verified" },
-  { name: "Kala Ghoda Prints", category: "Art & Decor", pin: "400001", status: "Verified" },
-  { name: "Bandra Thrift Closet", category: "Fashion", pin: "400050", status: "Suspended" },
-  { name: "Linking Road Leather", category: "Accessories", pin: "400050", status: "Verified" },
-  { name: "Indiranagar Organics", category: "Groceries", pin: "560001", status: "Pending KYC" },
-  { name: "Koramangala Kicks", category: "Footwear", pin: "560034", status: "Verified" },
-  { name: "Howrah Brassworks", category: "Home", pin: "700001", status: "Verified" },
-  { name: "Marina Silks", category: "Textiles", pin: "600001", status: "Verified" }
+  { name: "Sharma Handlooms", category: "Fashion & Clothing", subCategory: "Women's Wear", pin: "110001", status: "Verified" },
+  { name: "Chandni Spice Co.", category: "Grocery & Daily Needs", subCategory: "Food Products", pin: "110001", status: "Verified" },
+  { name: "Delhi Gadget Hub", category: "Electrical & Electronics", subCategory: "Electronics", pin: "110001", status: "Pending KYC" },
+  { name: "Cyber City Bakes", category: "Food", subCategory: "Vegetarian", pin: "122001", status: "Verified" },
+  { name: "Kala Ghoda Prints", category: "Handicrafts & Handmade", subCategory: "Handmade Décor", pin: "400001", status: "Verified" },
+  { name: "Bandra Thrift Closet", category: "Fashion & Clothing", subCategory: "Men's Wear", pin: "400050", status: "Suspended" },
+  { name: "Linking Road Leather", category: "Fashion & Clothing", subCategory: "Leather", pin: "400050", status: "Verified" },
+  { name: "Indiranagar Organics", category: "Grocery & Daily Needs", subCategory: "Packaged Goods", pin: "560001", status: "Pending KYC" },
+  { name: "Koramangala Kicks", category: "Fashion & Clothing", subCategory: "Footwear", pin: "560034", status: "Verified" },
+  { name: "Howrah Brassworks", category: "Home & Kitchen", subCategory: "Home Décor", pin: "700001", status: "Verified" },
+  { name: "Saraswati Music Academy", category: "School & Education", subCategory: "Music", type: "Tabla", pin: "400050", status: "Verified" },
+  { name: "Bright Minds Tutorials", category: "School & Education", subCategory: "Tutoring & Coaching", type: "Secondary School", pin: "110001", status: "Pending KYC" },
+  { name: "Marina Silks", category: "Fashion & Clothing", subCategory: "Women's Wear", pin: "600001", status: "Verified" }
 ];
 export const EXAMPLE_BUYERS = [
   { name: "Aditi Verma", pin: "110001", orders: 14, status: "Active" },

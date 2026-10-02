@@ -55,7 +55,7 @@ button, input { font: inherit; color: inherit; }
 .sub { color: var(--muted); margin: 0; }
 form { display: flex; flex-direction: column; gap: 14px; }
 label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: .88rem; }
-input[type="email"], input[type="password"], input[type="text"] {
+input[type="email"], input[type="password"], input[type="text"], select {
   padding: 11px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--ground); width: 100%;
 }
 input:focus { border-color: var(--brand); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 25%, transparent); }
