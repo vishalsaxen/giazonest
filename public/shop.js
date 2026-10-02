@@ -41,7 +41,9 @@ const authError = (e) => ({
   "auth/email-already-in-use": "An account with this email already exists. Sign in instead.",
   "auth/too-many-requests": "Too many attempts. Wait a few minutes or reset your password.",
   "auth/network-request-failed": "Can't reach the server. Check your connection and try again.",
-  "auth/user-not-found": "No account uses that email."
+  "auth/user-not-found": "No account uses that email.",
+  "auth/invalid-email": "That email doesn't look right. Check for typos, or sign in with your user ID instead.",
+  "auth/missing-email": "Enter the email on your account."
 }[e.code] || e.message);
 const km = (a, b) => {
   if (!a || !b || a.lat == null || b.lat == null) return Infinity;
@@ -52,6 +54,7 @@ const km = (a, b) => {
 const fmt = (d) => d === Infinity ? "" : d < 1 ? "< 1 km" : `${Math.round(d).toLocaleString("en-IN")} km`;
 
 // ---------- Sign in, create account, reset
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const steps = ["step-signin", "step-signup", "step-forgot"];
 const step = (id) => steps.forEach((s) => (document.getElementById(s).hidden = s !== id));
 $("#go-signup").onclick = () => step("step-signup");
@@ -65,6 +68,7 @@ $("#signin-form").onsubmit = async (e) => {
   if (!id || !pw) return show(m, "Enter your email or user ID, and your password.", "bad");
   try {
     let email = id;
+    if (id.includes("@") && !EMAIL.test(id)) return show(m, "That email doesn't look right. Check for typos, or sign in with your user ID instead.", "bad");
     if (!id.includes("@")) {
       const u = await getDoc(doc(db, "usernames", id));
       if (!u.exists()) return show(m, "No account uses that user ID. Check it, or sign in with your email.", "bad");
@@ -84,7 +88,7 @@ $("#signup-form").onsubmit = async (e) => {
   if (!name) return show(m, "Enter your full name.", "bad");
   if (!/^[a-z0-9_.]{3,20}$/.test(user)) return show(m, "User ID should be 3 to 20 letters, numbers, dots or underscores.", "bad");
   if (!/^[6-9]\d{9}$/.test(phone)) return show(m, "Mobile number should be 10 digits, like 9876543210.", "bad");
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return show(m, "That email doesn't look right.", "bad");
+  if (!EMAIL.test(email)) return show(m, "That email doesn't look right.", "bad");
   if (email === SUPER_ADMIN_EMAIL.toLowerCase()) return show(m, "This email belongs to the admin account. Use a different email.", "bad");
   if (pin && !/^[1-9]\d{5}$/.test(pin)) return show(m, "Pin code should be 6 digits.", "bad");
   if (!RULES.every(([, f]) => f(pw))) return show(m, "Your password doesn't meet every rule above.", "bad");
@@ -115,6 +119,7 @@ $("#forgot-form").onsubmit = async (e) => {
   e.preventDefault();
   const email = $("#fg-email").value.trim().toLowerCase(), m = $("#fg-msg");
   if (!email) return show(m, "Enter the email on your account.", "bad");
+  if (!EMAIL.test(email)) return show(m, "That email doesn't look right. Check for typos.", "bad");
   try {
     await sendPasswordResetEmail(auth, email);
     step("step-signin");
