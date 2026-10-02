@@ -119,3 +119,12 @@ input:focus { border-color: var(--brand); outline: none; box-shadow: 0 0 0 3px c
   .view { animation: rise .35s ease-out; }
   @keyframes rise { from { transform: translateY(6px); opacity: .6; } to { transform: none; opacity: 1; } }
 }
+
+/* Seller KYC */
+.link-name { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.link-name:hover { text-decoration-color: var(--brand); }
+.dialog.kyc { width: min(560px, 100%); max-height: 90vh; overflow-y: auto; }
+.kyc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.kyc-grid input { text-transform: uppercase; }
+.btn.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
+@media (max-width: 560px) { .kyc-grid { grid-template-columns: 1fr; } }

@@ -174,6 +174,49 @@
   </div>
 </div>
 
+<!-- Seller KYC dialog -->
+<div class="overlay" id="kyc-dialog" hidden>
+  <div class="dialog kyc" role="dialog" aria-modal="true" aria-labelledby="kyc-title">
+    <div class="row">
+      <h2 id="kyc-title" style="font-size:1.25rem"></h2>
+      <span class="chip" id="kyc-status"></span>
+    </div>
+    <p class="sub" id="kyc-sub"></p>
+    <form id="kyc-form" novalidate>
+      <div class="kyc-grid">
+        <label for="kyc-pan">PAN *
+          <input id="kyc-pan" type="text" maxlength="10" autocomplete="off" placeholder="ABCDE1234F">
+        </label>
+        <label for="kyc-gstin">GSTIN <span class="hint">if registered</span>
+          <input id="kyc-gstin" type="text" maxlength="15" autocomplete="off" placeholder="27ABCDE1234F1Z5">
+        </label>
+        <label for="kyc-account">Bank account number *
+          <input id="kyc-account" type="text" inputmode="numeric" maxlength="18" autocomplete="off">
+        </label>
+        <label for="kyc-ifsc">IFSC *
+          <input id="kyc-ifsc" type="text" maxlength="11" autocomplete="off" placeholder="SBIN0001234">
+        </label>
+        <label for="kyc-aadhaar">Aadhaar, last 4 digits
+          <input id="kyc-aadhaar" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234">
+        </label>
+      </div>
+      <label for="kyc-note">Note to seller <span class="hint">required when rejecting</span>
+        <input id="kyc-note" type="text" maxlength="300" placeholder="e.g. PAN name doesn't match the shop owner">
+      </label>
+      <p class="hint" id="kyc-review"></p>
+      <div id="kyc-msg" class="msg" hidden></div>
+      <div class="row">
+        <button type="button" class="btn ghost" id="kyc-cancel">Close</button>
+        <div class="row" style="gap:8px">
+          <button type="submit" class="btn ghost">Save details</button>
+          <button type="button" class="btn ghost danger" id="kyc-reject">Reject</button>
+          <button type="button" class="btn" id="kyc-approve">Approve</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Setup notice, shown until firebase-config.js is filled in -->
 <div class="overlay" id="setup-dialog" hidden>
   <div class="dialog">
