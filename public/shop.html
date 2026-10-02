@@ -21,7 +21,7 @@
         <h1>Where selling meets shopping.</h1>
         <p>Find KYC-verified local sellers by pin code or your live location, and contact them directly.</p>
       </div>
-      <p class="hint" style="color:inherit;opacity:.6">Every seller you see has been checked by GiaZoNest.</p>
+      <p class="hint" style="color:inherit;opacity:.6">Every seller you see has been checked by GiaZoNest. Want to sell? <a href="seller.html" style="color:inherit">Open the seller page</a>.</p>
     </aside>
 
     <section class="auth-main">
@@ -155,6 +155,11 @@
         </label>
       </form>
       <div class="panel-head">
+        <h2>Products <span class="count" id="product-count">0</span></h2>
+        <span class="hint" id="product-note"></span>
+      </div>
+      <ul class="product-grid" id="product-results"></ul>
+      <div class="panel-head" style="margin-top:20px">
         <h2>Sellers <span class="count" id="result-count">0</span></h2>
         <span class="hint" id="result-note"></span>
       </div>
@@ -162,6 +167,26 @@
     </section>
   </div>
 </main>
+
+<!-- Product details -->
+<div class="overlay" id="product-dialog" hidden>
+  <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="pv-name">
+    <div class="row">
+      <h2 id="pv-name" style="font-size:1.25rem"></h2>
+      <button type="button" class="btn ghost small" id="pv-close">Close</button>
+    </div>
+    <div class="gallery">
+      <img id="pv-photo" alt="" hidden>
+      <ul class="photo-strip" id="pv-strip"></ul>
+    </div>
+    <p class="price big" id="pv-price"></p>
+    <p class="meta" id="pv-stock"></p>
+    <p id="pv-desc"></p>
+    <dl class="details" id="pv-details"></dl>
+    <p class="meta" id="pv-seller"></p>
+    <div class="result-actions" id="pv-actions"></div>
+  </div>
+</div>
 
 <div class="overlay" id="setup-dialog" hidden>
   <div class="dialog">

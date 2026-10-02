@@ -192,7 +192,7 @@
 <div class="overlay" id="delete-dialog" hidden>
   <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="del-title" aria-describedby="del-sub">
     <h2 id="del-title" style="font-size:1.25rem"></h2>
-    <p class="sub" id="del-sub">This removes them from the database and the shop for good. It can't be undone.</p>
+    <p class="sub" id="del-sub">This removes them, their products and their photos from the database and the shop for good. It can't be undone.</p>
     <ul class="del-names" id="del-names"></ul>
     <div id="del-msg" class="msg" hidden></div>
     <div class="row">
@@ -212,20 +212,29 @@
     <p class="sub" id="kyc-sub"></p>
     <form id="kyc-form" novalidate>
       <div class="kyc-grid">
-        <label for="kyc-pan">PAN *
-          <input id="kyc-pan" type="text" maxlength="10" autocomplete="off" placeholder="ABCDE1234F">
-        </label>
-        <label for="kyc-gstin">GSTIN <span class="hint">if registered</span>
-          <input id="kyc-gstin" type="text" maxlength="15" autocomplete="off" placeholder="27ABCDE1234F1Z5">
-        </label>
-        <label for="kyc-account">Bank account number *
-          <input id="kyc-account" type="text" inputmode="numeric" maxlength="18" autocomplete="off">
-        </label>
-        <label for="kyc-ifsc">IFSC *
+        <div class="kyc-field">
+          <label for="kyc-pan">PAN
+            <input id="kyc-pan" type="text" maxlength="10" autocomplete="off" placeholder="ABCDE1234F">
+          </label>
+          <label class="na" for="kyc-pan-na"><input type="checkbox" id="kyc-pan-na"> Not available</label>
+        </div>
+        <div class="kyc-field">
+          <label for="kyc-gstin">GSTIN
+            <input id="kyc-gstin" type="text" maxlength="15" autocomplete="off" placeholder="27ABCDE1234F1Z5">
+          </label>
+          <label class="na" for="kyc-gstin-na"><input type="checkbox" id="kyc-gstin-na"> Not available</label>
+        </div>
+        <div class="kyc-field">
+          <label for="kyc-account">Bank account number
+            <input id="kyc-account" type="text" inputmode="numeric" maxlength="18" autocomplete="off">
+          </label>
+          <label class="na" for="kyc-account-na"><input type="checkbox" id="kyc-account-na"> Not available</label>
+        </div>
+        <label for="kyc-ifsc">IFSC
           <input id="kyc-ifsc" type="text" maxlength="11" autocomplete="off" placeholder="SBIN0001234">
         </label>
-        <label for="kyc-aadhaar">Aadhaar, last 4 digits
-          <input id="kyc-aadhaar" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234">
+        <label for="kyc-aadhaarLast4">Aadhaar, last 4 digits
+          <input id="kyc-aadhaarLast4" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234">
         </label>
       </div>
       <div class="kyc-grid">
@@ -242,6 +251,10 @@
       <label for="kyc-note">Note to seller <span class="hint">required when rejecting</span>
         <input id="kyc-note" type="text" maxlength="300" placeholder="e.g. PAN name doesn't match the shop owner">
       </label>
+      <div class="stack" style="gap:8px" id="kyc-products-box">
+        <h3 class="mini-h">Products <span class="count" id="kyc-product-count">0</span></h3>
+        <ul class="products compact" id="kyc-products"></ul>
+      </div>
       <p class="hint" id="kyc-review"></p>
       <div id="kyc-msg" class="msg" hidden></div>
       <div class="row">

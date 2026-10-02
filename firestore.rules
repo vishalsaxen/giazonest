@@ -7,24 +7,74 @@ service cloud.firestore {
       return request.auth != null
         && request.auth.token.email == 'vishalsaxen@gmail.com';
     }
+    function signedIn() {
+      return request.auth != null;
+    }
     function isOwner(uid) {
-      return request.auth != null && request.auth.uid == uid;
+      return signedIn() && request.auth.uid == uid;
+    }
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
     }
 
-    // Full seller records, including KYC numbers. Admin only.
+    // Full seller records, including KYC numbers. Sellers who sign up keep
+    // theirs at sellers/{their uid}: they can read and edit it, but they
+    // can't approve themselves, and verified KYC numbers are locked.
     match /sellers/{id} {
       allow read, write: if isSuperAdmin();
+      allow get: if isOwner(id);
+      allow create: if isOwner(id)
+        && request.resource.data.status == 'Pending KYC'
+        && request.resource.data.ownerUid == request.auth.uid
+        && !request.resource.data.keys().hasAny(['kycReviewedAt', 'kycReviewedBy', 'kycNote', 'example']);
+      allow update: if isOwner(id)
+        && !changed().hasAny(['kycReviewedAt', 'kycReviewedBy', 'kycNote', 'ownerUid', 'example'])
+        && (request.resource.data.status == resource.data.status
+            || (resource.data.status == 'KYC Rejected' && request.resource.data.status == 'Pending KYC'))
+        && !(resource.data.status in ['Verified', 'Suspended'] && changed().hasAny(['kyc']));
     }
     // KYC-verified sellers without KYC numbers. Signed-in shoppers can read;
     // the admin console keeps this in sync.
     match /publicSellers/{id} {
-      allow read: if request.auth != null;
+      allow read: if signedIn();
       allow write: if isSuperAdmin();
+    }
+    // Products. Shoppers see only live ones (sellers who are verified).
+    // A seller can only mark a product live while their shop is verified.
+    function validProduct() {
+      let p = request.resource.data;
+      return p.sellerId == request.auth.uid
+        && p.name is string && p.name.size() > 0 && p.name.size() <= 80
+        && p.price is number && p.price >= 0
+        && p.discount is number && p.discount >= 0 && p.discount <= p.price
+        && p.stock is int && p.stock >= 0
+        && p.sold is int && p.sold >= 0
+        && p.live == exists(/databases/$(database)/documents/publicSellers/$(request.auth.uid));
+    }
+    match /products/{pid} {
+      allow read, write: if isSuperAdmin();
+      allow read: if signedIn() && (resource.data.live == true || resource.data.sellerId == request.auth.uid);
+      allow create: if signedIn() && validProduct();
+      allow update: if signedIn() && resource.data.sellerId == request.auth.uid && validProduct();
+      allow delete: if signedIn() && resource.data.sellerId == request.auth.uid;
+    }
+    // Product photos, one per document, shrunk in the browser.
+    match /productImages/{iid} {
+      allow read: if signedIn();
+      allow write: if isSuperAdmin();
+      function validPhoto() {
+        return request.resource.data.sellerId == request.auth.uid
+          && request.resource.data.data is string
+          && request.resource.data.data.size() < 400000;
+      }
+      allow create: if signedIn() && validPhoto();
+      allow update: if signedIn() && resource.data.sellerId == request.auth.uid && validPhoto();
+      allow delete: if signedIn() && resource.data.sellerId == request.auth.uid;
     }
     // User ID -> email, so shoppers can sign in with their user ID.
     match /usernames/{name} {
       allow get: if true;
-      allow create: if request.auth != null
+      allow create: if signedIn()
         && request.resource.data.uid == request.auth.uid;
       allow read, write: if isSuperAdmin();
     }

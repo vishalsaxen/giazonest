@@ -4,11 +4,12 @@ import {
   updateProfile, signOut, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, collection, getDocs, getDoc, doc, writeBatch, updateDoc, serverTimestamp
+  getFirestore, collection, getDocs, getDoc, doc, writeBatch, updateDoc, serverTimestamp, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig, SUPER_ADMIN_EMAIL } from "./firebase-config.js?v=dev";
 import { PINS } from "./pincodes.js?v=dev";
 import { CATEGORIES, subsOf, typesOf } from "./categories.js?v=dev";
+import { fieldsFor, itemWord, sellingPrice, rupees } from "./product-fields.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
 if (firebaseConfig.apiKey.startsWith("PASTE")) {
@@ -129,7 +130,7 @@ $("#forgot-form").onsubmit = async (e) => {
 $("#sign-out").onclick = () => signOut(auth);
 
 // ---------- Search
-let me = null, here = null, sellers = [];
+let me = null, here = null, sellers = [], products = [];
 const catSel = $("#f-cat"), subSel = $("#f-sub"), typeSel = $("#f-type");
 const opt = (v, label = v) => { const o = document.createElement("option"); o.value = v; o.textContent = label; return o; };
 Object.keys(CATEGORIES).forEach((c) => catSel.append(opt(c)));
@@ -156,9 +157,34 @@ function setPlace(origin, pin, label) {
   render();
 }
 
+const whatsappLink = (r, text) => `https://wa.me/91${encodeURIComponent(r.whatsapp)}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
+
 function render() {
   const text = $("#f-text").value.trim().toLowerCase();
   const radius = Number($("#f-radius").value) || Infinity;
+  const byId = new Map(sellers.map((r) => [r.id, r]));
+  const items = products
+    .map((p) => ({ p, s: byId.get(p.sellerId) }))
+    .filter(({ s }) => s)
+    .map(({ p, s }) => ({ p, s, d: km(here, s) }))
+    .filter(({ p, s, d }) =>
+      (!catSel.value || p.category === catSel.value) &&
+      (!subSel.value || p.subCategory === subSel.value) &&
+      (!typeSel.value || p.type === typeSel.value) &&
+      (!text || [p.name, p.description, p.subCategory, p.type, s.name, ...Object.values(p.details || {})].join(" ").toLowerCase().includes(text)) &&
+      (!here || radius === Infinity || d <= radius))
+    .sort((a, b) => (b.p.stock > 0) - (a.p.stock > 0) || a.d - b.d || a.p.name.localeCompare(b.p.name));
+  $("#product-count").textContent = items.length;
+  $("#product-note").textContent = items.length ? "In stock first, then nearest" : "";
+  $("#product-results").innerHTML = items.length ? items.map(({ p, s, d }) => `
+    <li><button type="button" class="product-card" data-product="${esc(p.id)}">
+      ${p.thumb ? `<img src="${p.thumb}" alt="" loading="lazy">` : `<span class="empty-thumb">No photo</span>`}
+      <span class="name">${esc(p.name)}</span>
+      <span class="price">${rupees(sellingPrice(p))}${p.discount ? ` <s>${rupees(p.price)}</s>` : ""}</span>
+      <span class="meta">${p.stock > 0 ? (p.stock <= 5 ? `Only ${p.stock} left` : "In stock") : `<b class="out">Out of stock</b>`}</span>
+      <span class="meta">${esc(s.name)}${fmt(d) ? " · " + fmt(d) : ""}</span>
+    </button></li>`).join("")
+    : `<li class="empty">No products match yet. Try a wider distance or another category.</li>`;
   const rows = sellers
     .map((r) => ({ r, d: km(here, r) }))
     .filter(({ r, d }) =>
@@ -178,7 +204,7 @@ function render() {
         <span class="meta">Pin ${esc(r.pin)}${fmt(d) ? " · " + fmt(d) + " away" : ""} · <span class="chip ok">KYC verified</span></span>
       </div>
       <div class="result-actions">
-        ${r.whatsapp ? `<a class="btn small" href="https://wa.me/91${esc(r.whatsapp)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
+        ${r.whatsapp ? `<a class="btn small" href="${whatsappLink(r)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
         ${r.email ? `<a class="btn ghost small" href="mailto:${esc(r.email)}">Email</a>` : ""}
         ${r.website ? `<a class="btn ghost small" href="${esc(r.website)}" target="_blank" rel="noopener">Website</a>` : ""}
       </div>
@@ -222,8 +248,10 @@ async function enter(user) {
   $("#who-name").textContent = `Hello, ${user.displayName || user.email}`;
   $("#results").innerHTML = `<li class="empty">Loading sellers…</li>`;
   try {
-    const [pub, mine] = await Promise.all([getDocs(collection(db, "publicSellers")), getDoc(doc(db, "buyers", user.uid))]);
+    const [pub, mine, prods] = await Promise.all([getDocs(collection(db, "publicSellers")), getDoc(doc(db, "buyers", user.uid)),
+      getDocs(query(collection(db, "products"), where("live", "==", true)))]);
     sellers = pub.docs.map((d) => ({ id: d.id, ...d.data() }));
+    products = prods.docs.map((d) => ({ id: d.id, ...d.data() }));
     me = mine.exists() ? mine.data() : null;
   } catch (err) {
     $("#results").innerHTML = `<li class="empty">Couldn't load sellers: ${esc(err.message)}</li>`;
@@ -249,4 +277,51 @@ onAuthStateChanged(auth, (user) => {
   }
   if (user) enter(user);
   else { $("#shop-view").hidden = true; $("#auth-view").hidden = false; step("step-signin"); }
+});
+
+// ---------- Product details
+const pv = $("#product-dialog");
+let viewing = null;
+const closeView = () => { pv.hidden = true; viewing = null; };
+$("#pv-close").onclick = closeView;
+pv.addEventListener("keydown", (e) => { if (e.key === "Escape") closeView(); });
+pv.addEventListener("click", (e) => { if (e.target === pv) closeView(); });
+$("#pv-strip").addEventListener("click", (e) => {
+  const src = e.target.closest("[data-src]")?.dataset.src;
+  if (src) $("#pv-photo").src = src;
+});
+
+$("#product-results").addEventListener("click", async (e) => {
+  const id = e.target.closest("[data-product]")?.dataset.product;
+  const p = products.find((x) => x.id === id);
+  if (!p) return;
+  const s = sellers.find((r) => r.id === p.sellerId) || {};
+  viewing = p;
+  const word = itemWord(p.category, p.subCategory);
+  $("#pv-name").textContent = p.name;
+  $("#pv-price").innerHTML = `${rupees(sellingPrice(p))}${p.discount ? ` <s>${rupees(p.price)}</s> <span class="off">${rupees(p.discount)} off</span>` : ""}`;
+  $("#pv-stock").innerHTML = p.stock > 0 ? `${p.stock} ${word}${p.stock === 1 ? "" : "s"} available` : `<b class="out">Out of stock</b>`;
+  $("#pv-desc").textContent = p.description || "";
+  const labels = Object.fromEntries(fieldsFor(p.category, p.subCategory).map((f) => [f.key, f.label]));
+  $("#pv-details").innerHTML = [["Category", [p.subCategory, p.type].filter(Boolean).join(" › ")], ...Object.entries(p.details || {}).map(([k, v]) => [labels[k] || k, v])]
+    .filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
+  $("#pv-seller").innerHTML = `Sold by <b>${esc(s.name || p.sellerName)}</b>${s.pin ? ` · Pin ${esc(s.pin)}` : ""}${fmt(km(here, s)) ? ` · ${fmt(km(here, s))} away` : ""} · <span class="chip ok">KYC verified</span>`;
+  $("#pv-actions").innerHTML = [
+    s.whatsapp && p.stock > 0 ? `<a class="btn" href="${whatsappLink(s, `Hi ${s.name}, I'd like to buy ${p.name} (${rupees(sellingPrice(p))}) that I saw on GiaZoNest.`)}" target="_blank" rel="noopener">Buy on WhatsApp</a>` : "",
+    s.whatsapp && p.stock <= 0 ? `<a class="btn ghost" href="${whatsappLink(s, `Hi ${s.name}, will ${p.name} be back in stock?`)}" target="_blank" rel="noopener">Ask on WhatsApp</a>` : "",
+    s.email ? `<a class="btn ghost" href="mailto:${esc(s.email)}?subject=${encodeURIComponent(p.name + " on GiaZoNest")}">Email seller</a>` : ""
+  ].join("");
+  const photo = $("#pv-photo");
+  photo.hidden = !p.thumb; photo.src = p.thumb || ""; photo.alt = p.name;
+  $("#pv-strip").innerHTML = "";
+  pv.hidden = false;
+  $("#pv-close").focus();
+  if (!p.photoCount) return;
+  try {
+    const snap = await getDocs(query(collection(db, "productImages"), where("productId", "==", p.id)));
+    if (viewing !== p) return;
+    const srcs = snap.docs.map((d) => d.data()).sort((a, b) => a.n - b.n).map((x) => x.data);
+    if (srcs[0]) photo.src = srcs[0];
+    $("#pv-strip").innerHTML = srcs.length > 1 ? srcs.map((src, i) => `<li><button type="button" data-src="${src}" aria-label="Photo ${i + 1}"><img src="${src}" alt=""></button></li>`).join("") : "";
+  } catch { /* the cover thumbnail is still shown */ }
 });
