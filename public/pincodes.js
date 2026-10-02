@@ -22,6 +22,8 @@ export const EXAMPLE_SELLERS = [
   { name: "Indiranagar Organics", category: "Grocery & Daily Needs", subCategory: "Packaged Goods", pin: "560001", status: "Pending KYC" },
   { name: "Koramangala Kicks", category: "Fashion & Clothing", subCategory: "Footwear", pin: "560034", status: "Verified" },
   { name: "Howrah Brassworks", category: "Home & Kitchen", subCategory: "Home Décor", pin: "700001", status: "Verified" },
+  { name: "Saraswati Music Academy", category: "School & Education", subCategory: "Music", type: "Tabla", pin: "400050", status: "Verified" },
+  { name: "Bright Minds Tutorials", category: "School & Education", subCategory: "Tutoring & Coaching", type: "Secondary School", pin: "110001", status: "Pending KYC" },
   { name: "Marina Silks", category: "Fashion & Clothing", subCategory: "Women's Wear", pin: "600001", status: "Verified" }
 ];
 export const EXAMPLE_BUYERS = [

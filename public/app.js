@@ -8,7 +8,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig, SUPER_ADMIN_EMAIL } from "./firebase-config.js";
 import { PINS, EXAMPLE_SELLERS, EXAMPLE_BUYERS } from "./pincodes.js";
-import { CATEGORIES } from "./categories.js";
+import { CATEGORIES, subsOf, typesOf } from "./categories.js";
 
 const $ = (s) => document.querySelector(s);
 const ADMIN = SUPER_ADMIN_EMAIL.toLowerCase();
@@ -145,7 +145,7 @@ function render() {
   const list = (all, few, html) => few.length ? few.map(html).join("")
     : `<li class="empty" style="display:block">None within ${RADIUS} km.${all[0] && all[0].d !== Infinity ? ` The nearest is ${esc(all[0].r.name)}, ${fmt(all[0].d)} away.` : ""}</li>`;
   $("#sellers-list").innerHTML = list(s, sNear, ({ r, d }) =>
-    `<li><span class="name">${esc(r.name)}</span><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""} · Pin ${esc(r.pin)}</span><span class="dist">${fmt(d)}</span></li>`);
+    `<li><span class="name">${esc(r.name)}</span><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · Pin ${esc(r.pin)}</span><span class="dist">${fmt(d)}</span></li>`);
   $("#buyers-list").innerHTML = list(b, bNear, ({ r, d }) =>
     `<li><span class="name">${esc(r.name)}</span><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${r.orders || 0} orders · Pin ${esc(r.pin)}</span><span class="dist">${fmt(d)}</span></li>`);
 }
@@ -178,15 +178,22 @@ $("#geo-btn").onclick = () => {
 
 // Add seller
 const sd = $("#seller-dialog");
-const catSel = $("#as-cat"), subSel = $("#as-sub");
+const catSel = $("#as-cat"), subSel = $("#as-sub"), typeSel = $("#as-type");
 const opt = (v, label = v) => { const o = document.createElement("option"); o.value = v; o.textContent = label; return o; };
 Object.keys(CATEGORIES).forEach((c) => catSel.append(opt(c)));
+const fillTypes = () => {
+  const types = typesOf(catSel.value, subSel.value);
+  typeSel.replaceChildren(opt("", "Select type"), ...types.map((x) => opt(x)));
+  $("#as-type-label").hidden = !types.length;
+};
 const fillSubs = () => {
-  const subs = CATEGORIES[catSel.value] || [];
+  const subs = subsOf(catSel.value);
   subSel.replaceChildren(opt("", subs.length ? "Select sub-category" : "Select a category first"), ...subs.map((x) => opt(x)));
   subSel.disabled = !subs.length;
+  fillTypes();
 };
 catSel.onchange = fillSubs;
+subSel.onchange = fillTypes;
 const closeSeller = () => { sd.hidden = true; $("#seller-form").reset(); fillSubs(); $("#as-msg").hidden = true; };
 $("#add-seller").onclick = () => { sd.hidden = false; $("#as-pin").value = current.pin || ""; $("#as-name").focus(); };
 $("#as-cancel").onclick = closeSeller;
@@ -196,10 +203,12 @@ $("#seller-form").onsubmit = async (e) => {
   const name = $("#as-name").value.trim(), category = catSel.value, subCategory = subSel.value, pin = $("#as-pin").value.trim(), m = $("#as-msg");
   if (!name) return show(m, "Enter the shop name.", "bad");
   if (!category || !subCategory) return show(m, "Choose a category and a sub-category.", "bad");
+  const type = typeSel.value;
+  if (typesOf(category, subCategory).length && !type) return show(m, "Choose a type.", "bad");
   if (!/^[1-9]\d{5}$/.test(pin)) return show(m, "Enter a 6-digit pin code.", "bad");
   const loc = PINS[pin] || [...sellers, ...buyers].find((r) => r.pin === pin && r.lat != null);
   try {
-    await addDoc(collection(db, "sellers"), { name, category, subCategory, pin, status: "Pending KYC",
+    await addDoc(collection(db, "sellers"), { name, category, subCategory, ...(type && { type }), pin, status: "Pending KYC",
       lat: loc ? loc.lat : null, lng: loc ? loc.lng : null, createdAt: serverTimestamp() });
     closeSeller();
     await load();
