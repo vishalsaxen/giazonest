@@ -4,7 +4,7 @@ import {
   sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, updatePassword
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, collection, getDocs, addDoc, writeBatch, doc, serverTimestamp
+  getFirestore, collection, getDocs, addDoc, updateDoc, writeBatch, doc, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig, SUPER_ADMIN_EMAIL } from "./firebase-config.js";
 import { PINS, EXAMPLE_SELLERS, EXAMPLE_BUYERS } from "./pincodes.js";
@@ -102,7 +102,7 @@ $("#sign-out").onclick = () => signOut(auth);
 // ---------- Sellers and buyers
 let sellers = [], buyers = [], current = { origin: PINS["110001"], label: PINS["110001"].place, pin: "110001" };
 const RADIUS = 50; // km counted as "near"
-const chip = { "Verified": "ok", "Active": "ok", "Pending KYC": "warn", "New": "warn", "Suspended": "bad", "Flagged": "bad" };
+const chip = { "Verified": "ok", "Active": "ok", "Pending KYC": "warn", "New": "warn", "Suspended": "bad", "Flagged": "bad", "KYC Rejected": "bad" };
 const km = (a, b) => {
   if (!a || !b || b.lat == null) return Infinity;
   const r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
@@ -145,7 +145,7 @@ function render() {
   const list = (all, few, html) => few.length ? few.map(html).join("")
     : `<li class="empty" style="display:block">None within ${RADIUS} km.${all[0] && all[0].d !== Infinity ? ` The nearest is ${esc(all[0].r.name)}, ${fmt(all[0].d)} away.` : ""}</li>`;
   $("#sellers-list").innerHTML = list(s, sNear, ({ r, d }) =>
-    `<li><span class="name">${esc(r.name)}</span><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · Pin ${esc(r.pin)}</span><span class="dist">${fmt(d)}</span></li>`);
+    `<li><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · Pin ${esc(r.pin)}</span><span class="dist">${fmt(d)}</span></li>`);
   $("#buyers-list").innerHTML = list(b, bNear, ({ r, d }) =>
     `<li><span class="name">${esc(r.name)}</span><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${r.orders || 0} orders · Pin ${esc(r.pin)}</span><span class="dist">${fmt(d)}</span></li>`);
 }
@@ -214,6 +214,63 @@ $("#seller-form").onsubmit = async (e) => {
     await load();
   } catch (err) { show(m, `Couldn't save: ${err.message}`, "bad"); }
 };
+
+// ---------- Seller KYC
+const kd = $("#kyc-dialog");
+let kycSeller = null;
+const KYC_RULES = {
+  "kyc-pan": [/^[A-Z]{5}[0-9]{4}[A-Z]$/, "PAN should look like ABCDE1234F."],
+  "kyc-gstin": [/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/, "GSTIN should be 15 characters, like 27ABCDE1234F1Z5."],
+  "kyc-account": [/^[0-9]{9,18}$/, "Bank account number should be 9 to 18 digits."],
+  "kyc-ifsc": [/^[A-Z]{4}0[A-Z0-9]{6}$/, "IFSC should look like SBIN0001234."],
+  "kyc-aadhaar": [/^[0-9]{4}$/, "Enter only the last 4 digits of Aadhaar."]
+};
+const kycVal = (id) => $("#" + id).value.trim().toUpperCase();
+const closeKyc = () => { kd.hidden = true; $("#kyc-form").reset(); $("#kyc-msg").hidden = true; kycSeller = null; };
+$("#sellers-list").addEventListener("click", (e) => {
+  const id = e.target.closest("[data-seller]")?.dataset.seller;
+  kycSeller = sellers.find((r) => r.id === id);
+  if (!kycSeller) return;
+  const k = kycSeller.kyc || {};
+  $("#kyc-title").textContent = kycSeller.name;
+  $("#kyc-sub").textContent = `${kycSeller.category || ""}${kycSeller.subCategory ? " › " + kycSeller.subCategory : ""}${kycSeller.type ? " › " + kycSeller.type : ""} · Pin ${kycSeller.pin}`;
+  $("#kyc-status").textContent = kycSeller.status;
+  $("#kyc-status").className = "chip " + (chip[kycSeller.status] || "warn");
+  $("#kyc-pan").value = k.pan || ""; $("#kyc-gstin").value = k.gstin || "";
+  $("#kyc-account").value = k.account || ""; $("#kyc-ifsc").value = k.ifsc || "";
+  $("#kyc-aadhaar").value = k.aadhaarLast4 || ""; $("#kyc-note").value = kycSeller.kycNote || "";
+  const when = kycSeller.kycReviewedAt?.toDate?.();
+  $("#kyc-review").textContent = when ? `Last reviewed ${when.toLocaleString("en-IN")} by ${kycSeller.kycReviewedBy}.` : "Not reviewed yet.";
+  kd.hidden = false; $("#kyc-pan").focus();
+});
+$("#kyc-cancel").onclick = closeKyc;
+kd.addEventListener("keydown", (e) => { if (e.key === "Escape") closeKyc(); });
+
+async function saveKyc(action) {
+  const m = $("#kyc-msg");
+  const kyc = { pan: kycVal("kyc-pan"), gstin: kycVal("kyc-gstin"), account: kycVal("kyc-account"), ifsc: kycVal("kyc-ifsc"), aadhaarLast4: kycVal("kyc-aadhaar") };
+  for (const [id, [re, text]] of Object.entries(KYC_RULES)) {
+    const v = kycVal(id);
+    if (v && !re.test(v)) return show(m, text, "bad");
+  }
+  const note = $("#kyc-note").value.trim();
+  if (action === "approve" && !(kyc.pan && kyc.account && kyc.ifsc))
+    return show(m, "To approve, fill in PAN, bank account number and IFSC.", "bad");
+  if (action === "reject" && !note) return show(m, "Write a reason in the note so the seller knows what to fix.", "bad");
+  const update = { kyc, kycNote: note };
+  if (action !== "save") Object.assign(update, {
+    status: action === "approve" ? "Verified" : "KYC Rejected",
+    kycReviewedAt: serverTimestamp(), kycReviewedBy: auth.currentUser.email
+  });
+  try {
+    await updateDoc(doc(db, "sellers", kycSeller.id), update);
+    closeKyc();
+    await load();
+  } catch (err) { show(m, `Couldn't save: ${err.message}`, "bad"); }
+}
+$("#kyc-form").onsubmit = (e) => { e.preventDefault(); saveKyc("save"); };
+$("#kyc-approve").onclick = () => saveKyc("approve");
+$("#kyc-reject").onclick = () => saveKyc("reject");
 
 // Example data: replaces any earlier example rows; real sellers and buyers are never touched
 $("#seed-btn").onclick = async () => {
