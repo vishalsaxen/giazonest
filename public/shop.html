@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GiaZoNest Shop</title>
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css?v=dev">
+</head>
+<body>
+
+<!-- ============ SIGN IN / CREATE ACCOUNT ============ -->
+<main id="auth-view" class="view">
+  <div class="auth">
+    <aside class="auth-side">
+      <div class="logo"><span class="mark">GZ</span>GiaZoNest</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <span class="role">● Shop near you</span>
+        <h1>Where selling meets shopping.</h1>
+        <p>Find KYC-verified local sellers by pin code or your live location, and contact them directly.</p>
+      </div>
+      <p class="hint" style="color:inherit;opacity:.6">Every seller you see has been checked by GiaZoNest.</p>
+    </aside>
+
+    <section class="auth-main">
+      <!-- Sign in -->
+      <div id="step-signin" class="stack">
+        <div>
+          <h2>Sign in</h2>
+          <p class="sub">New here? <button type="button" class="link" id="go-signup">Create an account</button></p>
+        </div>
+        <form id="signin-form" novalidate>
+          <label for="si-id">Email or user ID
+            <input id="si-id" type="text" autocomplete="username" required>
+          </label>
+          <label for="si-pass">Password
+            <input id="si-pass" type="password" autocomplete="current-password" required>
+          </label>
+          <div class="row">
+            <label for="si-show" style="flex-direction:row;align-items:center;font-weight:500"><input id="si-show" type="checkbox"> Show password</label>
+            <button type="button" class="link" id="go-forgot">Forgot password?</button>
+          </div>
+          <div id="si-msg" class="msg" hidden></div>
+          <button class="btn" type="submit">Sign in</button>
+        </form>
+      </div>
+
+      <!-- Create account -->
+      <div id="step-signup" class="stack" hidden>
+        <div>
+          <h2>Create your account</h2>
+          <p class="sub">Already have one? <button type="button" class="link back">Sign in</button></p>
+        </div>
+        <form id="signup-form" novalidate>
+          <label for="su-name">Full name *
+            <input id="su-name" type="text" autocomplete="name" required>
+          </label>
+          <div class="kyc-grid">
+            <label for="su-user">User ID *
+              <input id="su-user" type="text" autocomplete="off" maxlength="20" placeholder="e.g. aditi_v" required>
+            </label>
+            <label for="su-phone">Mobile number *
+              <input id="su-phone" type="tel" inputmode="numeric" maxlength="10" autocomplete="tel-national" required>
+            </label>
+          </div>
+          <label for="su-email">Email *
+            <input id="su-email" type="email" autocomplete="email" required>
+          </label>
+          <label for="su-pin">Pin code <span class="hint">you can change it later</span>
+            <input id="su-pin" type="text" inputmode="numeric" maxlength="6">
+          </label>
+          <label for="su-pass">Password *
+            <input id="su-pass" type="password" autocomplete="new-password" required>
+          </label>
+          <ul class="rules" data-for="su-pass"></ul>
+          <label for="su-confirm">Confirm password *
+            <input id="su-confirm" type="password" autocomplete="new-password" required>
+          </label>
+          <div id="su-msg" class="msg" hidden></div>
+          <button class="btn" type="submit">Create account</button>
+        </form>
+      </div>
+
+      <!-- Forgot password -->
+      <div id="step-forgot" class="stack" hidden>
+        <div>
+          <h2>Reset password</h2>
+          <p class="sub">We'll email you a link to choose a new password.</p>
+        </div>
+        <form id="forgot-form" novalidate>
+          <label for="fg-email">Email
+            <input id="fg-email" type="email" autocomplete="email" required>
+          </label>
+          <div id="fg-msg" class="msg" hidden></div>
+          <div class="row">
+            <button type="button" class="link back">← Back to sign in</button>
+            <button class="btn" type="submit">Send reset link</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+</main>
+
+<!-- ============ SEARCH ============ -->
+<main id="shop-view" class="view" hidden>
+  <div class="wrap">
+    <header class="top">
+      <div class="logo"><span class="mark">GZ</span>GiaZoNest</div>
+      <div class="who">
+        <span class="hint" id="who-name"></span>
+        <button class="btn ghost small" id="sign-out">Sign out</button>
+      </div>
+    </header>
+
+    <section class="locbar" aria-labelledby="find-title">
+      <div>
+        <h1 id="find-title">Find sellers near you</h1>
+        <div class="where">Searching around <span class="pin" id="cur-pin">—</span> <span id="cur-place">Set your pin code or use your location</span></div>
+      </div>
+      <form class="loc-controls" id="pin-form" novalidate>
+        <label for="pin-input">Pin code
+          <input id="pin-input" type="text" inputmode="numeric" maxlength="6" placeholder="e.g. 400001">
+        </label>
+        <button class="btn" type="submit">Set</button>
+        <button class="btn ghost" type="button" id="geo-btn">📍 Use my location</button>
+        <div id="loc-msg" class="hint" style="flex-basis:100%" aria-live="polite"></div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <form class="filters" id="filter-form" novalidate>
+        <label for="f-text">Search
+          <input id="f-text" type="text" placeholder="Shop name or product, e.g. tabla">
+        </label>
+        <label for="f-cat">Category
+          <select id="f-cat"><option value="">All categories</option></select>
+        </label>
+        <label for="f-sub">Sub-category
+          <select id="f-sub" disabled><option value="">All</option></select>
+        </label>
+        <label for="f-type" id="f-type-label" hidden>Type
+          <select id="f-type"><option value="">All</option></select>
+        </label>
+        <label for="f-radius">Distance
+          <select id="f-radius">
+            <option value="5">Within 5 km</option>
+            <option value="10">Within 10 km</option>
+            <option value="25" selected>Within 25 km</option>
+            <option value="50">Within 50 km</option>
+            <option value="">Any distance</option>
+          </select>
+        </label>
+      </form>
+      <div class="panel-head">
+        <h2>Sellers <span class="count" id="result-count">0</span></h2>
+        <span class="hint" id="result-note"></span>
+      </div>
+      <ul class="results" id="results"></ul>
+    </section>
+  </div>
+</main>
+
+<div class="overlay" id="setup-dialog" hidden>
+  <div class="dialog">
+    <h2 style="font-size:1.25rem">The shop isn't connected yet</h2>
+    <p class="sub">Fill in public/firebase-config.js and reload.</p>
+  </div>
+</div>
+
+<script type="module" src="shop.js?v=dev"></script>
+</body>
+</html>

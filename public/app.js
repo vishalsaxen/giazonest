@@ -9,6 +9,7 @@ import {
 import { firebaseConfig, SUPER_ADMIN_EMAIL } from "./firebase-config.js?v=dev";
 import { PINS, EXAMPLE_SELLERS, EXAMPLE_BUYERS } from "./pincodes.js?v=dev";
 import { CATEGORIES, subsOf, typesOf } from "./categories.js?v=dev";
+import { checkContact, publicSeller } from "./contacts.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
 const ADMIN = SUPER_ADMIN_EMAIL.toLowerCase();
@@ -118,6 +119,7 @@ async function load() {
     const [s, b] = await Promise.all([getDocs(collection(db, "sellers")), getDocs(collection(db, "buyers"))]);
     sellers = s.docs.map((d) => ({ id: d.id, ...d.data() }));
     buyers = b.docs.map((d) => ({ id: d.id, ...d.data() }));
+    await syncPublic();
     const hasExamples = [...sellers, ...buyers].some((r) => r.example);
     $("#seed-btn").hidden = !(hasExamples || sellers.length + buyers.length === 0);
     $("#seed-btn").textContent = hasExamples ? "Refresh example data" : "Load example data";
@@ -128,6 +130,24 @@ async function load() {
   } catch (err) {
     $("#data-note").textContent = `Couldn't load data: ${err.message}. Check firestore.rules and the super admin email.`;
   }
+}
+
+// Shoppers only see the publicSellers collection: Verified sellers, without KYC details.
+async function syncPublic() {
+  const pub = await getDocs(collection(db, "publicSellers"));
+  const stable = (o) => JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));
+  const have = new Map(pub.docs.map((d) => [d.id, stable(d.data())]));
+  const batch = writeBatch(db);
+  let changes = 0;
+  for (const r of sellers) {
+    if (r.status === "Verified") {
+      const data = publicSeller(r);
+      if (have.get(r.id) !== stable(data)) { batch.set(doc(db, "publicSellers", r.id), data); changes++; }
+      have.delete(r.id);
+    }
+  }
+  for (const id of have.keys()) { batch.delete(doc(db, "publicSellers", id)); changes++; }
+  if (changes) await batch.commit();
 }
 
 function render() {
@@ -147,7 +167,7 @@ function render() {
   $("#sellers-list").innerHTML = list(s, sNear, ({ r, d }) =>
     `<li><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · Pin ${esc(r.pin)}</span><span class="dist">${fmt(d)}</span><button type="button" class="btn ghost small kyc-btn" data-seller="${esc(r.id)}">Review KYC</button></li>`);
   $("#buyers-list").innerHTML = list(b, bNear, ({ r, d }) =>
-    `<li><span class="name">${esc(r.name)}</span><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${r.orders || 0} orders · Pin ${esc(r.pin)}</span><span class="dist">${fmt(d)}</span></li>`);
+    `<li><span class="name">${esc(r.name)}</span><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${r.orders || 0} orders · Pin ${esc(r.pin || "not set")}${r.phone ? " · " + esc(r.phone) : ""}</span><span class="dist">${fmt(d)}</span></li>`);
 }
 
 // Pin code search: use the known pin table, else the first record with that pin
@@ -206,9 +226,12 @@ $("#seller-form").onsubmit = async (e) => {
   const type = typeSel.value;
   if (typesOf(category, subCategory).length && !type) return show(m, "Choose a type.", "bad");
   if (!/^[1-9]\d{5}$/.test(pin)) return show(m, "Enter a 6-digit pin code.", "bad");
+  const contact = { email: $("#as-email").value.trim().toLowerCase(), whatsapp: $("#as-whatsapp").value.trim(), website: $("#as-website").value.trim() };
+  const bad = checkContact(contact);
+  if (bad) return show(m, bad, "bad");
   const loc = PINS[pin] || [...sellers, ...buyers].find((r) => r.pin === pin && r.lat != null);
   try {
-    await addDoc(collection(db, "sellers"), { name, category, subCategory, ...(type && { type }), pin, status: "Pending KYC",
+    await addDoc(collection(db, "sellers"), { name, category, subCategory, ...(type && { type }), pin, ...contact, status: "Pending KYC",
       lat: loc ? loc.lat : null, lng: loc ? loc.lng : null, createdAt: serverTimestamp() });
     closeSeller();
     await load();
@@ -239,6 +262,7 @@ $("#sellers-list").addEventListener("click", (e) => {
   $("#kyc-pan").value = k.pan || ""; $("#kyc-gstin").value = k.gstin || "";
   $("#kyc-account").value = k.account || ""; $("#kyc-ifsc").value = k.ifsc || "";
   $("#kyc-aadhaar").value = k.aadhaarLast4 || ""; $("#kyc-note").value = kycSeller.kycNote || "";
+  $("#kyc-email").value = kycSeller.email || ""; $("#kyc-whatsapp").value = kycSeller.whatsapp || ""; $("#kyc-website").value = kycSeller.website || "";
   const when = kycSeller.kycReviewedAt?.toDate?.();
   $("#kyc-review").textContent = when ? `Last reviewed ${when.toLocaleString("en-IN")} by ${kycSeller.kycReviewedBy}.` : "Not reviewed yet.";
   kd.hidden = false; $("#kyc-pan").focus();
@@ -253,11 +277,14 @@ async function saveKyc(action) {
     const v = kycVal(id);
     if (v && !re.test(v)) return show(m, text, "bad");
   }
+  const contact = { email: $("#kyc-email").value.trim().toLowerCase(), whatsapp: $("#kyc-whatsapp").value.trim(), website: $("#kyc-website").value.trim() };
+  const badContact = checkContact(contact, action !== "approve");
+  if (badContact) return show(m, badContact, "bad");
   const note = $("#kyc-note").value.trim();
   if (action === "approve" && !(kyc.pan && kyc.account && kyc.ifsc))
     return show(m, "To approve, fill in PAN, bank account number and IFSC.", "bad");
   if (action === "reject" && !note) return show(m, "Write a reason in the note so the seller knows what to fix.", "bad");
-  const update = { kyc, kycNote: note };
+  const update = { kyc, kycNote: note, ...contact };
   if (action !== "save") Object.assign(update, {
     status: action === "approve" ? "Verified" : "KYC Rejected",
     kycReviewedAt: serverTimestamp(), kycReviewedBy: auth.currentUser.email

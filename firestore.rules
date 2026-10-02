@@ -1,18 +1,44 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Only the super admin can read or write. Change this email to match
-    // SUPER_ADMIN_EMAIL in public/firebase-config.js.
+    // The super admin. Change this email to match SUPER_ADMIN_EMAIL in
+    // public/firebase-config.js.
     function isSuperAdmin() {
       return request.auth != null
         && request.auth.token.email == 'vishalsaxen@gmail.com';
     }
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
 
+    // Full seller records, including KYC numbers. Admin only.
     match /sellers/{id} {
       allow read, write: if isSuperAdmin();
     }
-    match /buyers/{id} {
+    // KYC-verified sellers without KYC numbers. Signed-in shoppers can read;
+    // the admin console keeps this in sync.
+    match /publicSellers/{id} {
+      allow read: if request.auth != null;
+      allow write: if isSuperAdmin();
+    }
+    // User ID -> email, so shoppers can sign in with their user ID.
+    match /usernames/{name} {
+      allow get: if true;
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid;
       allow read, write: if isSuperAdmin();
+    }
+    // Shopper profiles. Each shopper can read and edit their own, but not
+    // their order count or status.
+    match /buyers/{uid} {
+      allow read, write: if isSuperAdmin();
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && request.resource.data.status == 'New'
+        && request.resource.data.orders == 0;
+      allow update: if isOwner(uid)
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.orders == resource.data.orders;
     }
     // Everything else stays closed until a rule opens it.
     match /{document=**} {
