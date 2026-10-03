@@ -266,3 +266,11 @@ label.agree input { margin-top: 4px; flex: none; }
 #kl-by-state td { text-align: right; }
 #kl-by-state thead th:not(:first-child) { text-align: right; }
 #kl-table td:last-child { text-align: right; }
+
+/* Shop place search: state, city, pin code */
+.place-bar { grid-template-columns: 1fr; }
+.place-search { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 12px; align-items: end; }
+.place-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 760px) {
+  .place-search { grid-template-columns: 1fr; }
+}

@@ -12,6 +12,7 @@ import { CATEGORIES, subsOf, typesOf } from "./categories.js?v=dev";
 import { fieldsFor, itemWord, sellingPrice, rupees } from "./product-fields.js?v=dev";
 import { termsGate, wireTermsLink, TERMS_VERSION } from "./terms.js?v=dev";
 import { ratingOf, ratingText, starString } from "./ratings.js?v=dev";
+import { STATES, stateFromPin } from "./places.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
 if (firebaseConfig.apiKey.startsWith("PASTE")) {
@@ -153,18 +154,43 @@ subSel.onchange = () => {
 $("#f-text").oninput = render;
 $("#filter-form").onsubmit = (e) => e.preventDefault();
 
-function setPlace(origin, pin, label) {
-  here = origin;
-  $("#cur-pin").textContent = pin || "GPS";
-  $("#cur-place").textContent = label;
-  render();
+// ---------- Place search: state, then city, then pin code. All start blank, which shows every seller.
+// Typing part of a name is enough ("maha" finds Maharashtra); suggestions narrow to the level above.
+const norm = (v) => String(v || "").toLowerCase().replace(/\band\b/g, "&").replace(/\s+/g, " ").trim();
+const stateOf = (r) => r.state || stateFromPin(r.pin) || "";
+const place = () => ({ state: norm($("#place-state").value), city: norm($("#place-city").value), pin: $("#place-pin").value.replace(/\D/g, "") });
+const inPlace = (r, f = place()) =>
+  (!f.state || norm(stateOf(r)).startsWith(f.state)) &&
+  (!f.city || norm(r.city).startsWith(f.city)) &&
+  (!f.pin || String(r.pin || "").startsWith(f.pin));
+function fillPlaceOptions() {
+  const f = place();
+  const list = (id, values) => $(id).replaceChildren(...[...new Set(values.filter(Boolean))].sort().map((v) => opt(v)));
+  list("#state-options", [...STATES]);
+  list("#city-options", sellers.filter((r) => inPlace(r, { ...f, city: "", pin: "" })).map((r) => r.city));
+  list("#pin-options", sellers.filter((r) => inPlace(r, { ...f, pin: "" })).map((r) => r.pin));
+  // Names the place in full once the typed letters point to just one state or city.
+  const named = (typed, f, names) => { if (!f) return ""; const hits = [...new Set(names.filter((n) => n && norm(n).startsWith(f)))]; return hits.length === 1 ? hits[0] : typed; };
+  const parts = [named($("#place-state").value.trim(), f.state, STATES), named($("#place-city").value.trim(), f.city, sellers.filter((r) => inPlace(r, { ...f, city: "", pin: "" })).map((r) => r.city)), f.pin && `Pin ${f.pin}`].filter(Boolean);
+  $("#where").textContent = here && liveLocation ? "Showing sellers near your live location" + (parts.length ? `, in ${parts.join(" › ")}` : "")
+    : parts.length ? `Showing sellers in ${parts.join(" › ")}` : "Showing sellers in every state";
 }
+["#place-state", "#place-city", "#place-pin"].forEach((s) => ($(s).oninput = () => { $("#loc-msg").textContent = ""; fillPlaceOptions(); render(); }));
+$("#place-form").onsubmit = (e) => e.preventDefault();
+$("#place-clear").onclick = () => {
+  $("#place-form").reset();
+  liveLocation = false; here = savedHere;
+  $("#f-radius-label").hidden = true;
+  $("#loc-msg").textContent = "";
+  fillPlaceOptions(); render();
+};
+let liveLocation = false, savedHere = null;
 
 const whatsappLink = (r, text) => `https://wa.me/91${encodeURIComponent(r.whatsapp)}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
 
 function render() {
   const text = $("#f-text").value.trim().toLowerCase();
-  const radius = Number($("#f-radius").value) || Infinity;
+  const radius = Number($("#f-radius").value) || Infinity, f = place();
   const byId = new Map(sellers.map((r) => [r.id, r]));
   const items = products
     .map((p) => ({ p, s: byId.get(p.sellerId) }))
@@ -175,7 +201,7 @@ function render() {
       (!subSel.value || p.subCategory === subSel.value) &&
       (!typeSel.value || p.type === typeSel.value) &&
       (!text || [p.name, p.description, p.subCategory, p.type, s.name, ...Object.values(p.details || {})].join(" ").toLowerCase().includes(text)) &&
-      (!here || radius === Infinity || d <= radius))
+      inPlace(s, f) && (!liveLocation || radius === Infinity || d <= radius))
     .sort((a, b) => (b.p.stock > 0) - (a.p.stock > 0) || a.d - b.d || a.p.name.localeCompare(b.p.name));
   $("#product-count").textContent = items.length;
   $("#product-note").textContent = items.length ? "In stock first, then nearest" : "";
@@ -187,7 +213,7 @@ function render() {
       <span class="meta">${p.stock > 0 ? (p.stock <= 5 ? `Only ${p.stock} left` : "In stock") : `<b class="out">Out of stock</b>`}</span>
       <span class="meta">${esc(s.name)}${fmt(d) ? " · " + fmt(d) : ""}</span>
     </button></li>`).join("")
-    : `<li class="empty">No products match yet. Try a wider distance or another category.</li>`;
+    : `<li class="empty">No products match yet. Try another state, city, pin code or category.</li>`;
   const rows = sellers
     .map((r) => ({ r, d: km(here, r) }))
     .filter(({ r, d }) =>
@@ -195,16 +221,16 @@ function render() {
       (!subSel.value || r.subCategory === subSel.value) &&
       (!typeSel.value || r.type === typeSel.value) &&
       (!text || [r.name, r.category, r.subCategory, r.type].join(" ").toLowerCase().includes(text)) &&
-      (!here || radius === Infinity || d <= radius))
+      inPlace(r, f) && (!liveLocation || radius === Infinity || d <= radius))
     .sort((a, b) => a.d - b.d || a.r.name.localeCompare(b.r.name));
   $("#result-count").textContent = rows.length;
-  $("#result-note").textContent = here ? "Nearest first" : "Set your pin code to sort by distance";
+  $("#result-note").textContent = here ? "Nearest first" : "";
   $("#results").innerHTML = rows.length ? rows.map(({ r, d }) => `
     <li class="result">
       <div class="result-main">
         <span class="name">${esc(r.name)}</span>
         <span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""}</span>
-        <span class="meta">Pin ${esc(r.pin)}${r.city ? ", " + esc(r.city) : ""}${fmt(d) ? " · " + fmt(d) + " away" : ""} · <span class="chip ok">KYC verified</span></span>
+        <span class="meta">${[r.city, stateOf(r)].filter(Boolean).map(esc).join(", ")}${r.city || stateOf(r) ? " · " : ""}Pin ${esc(r.pin)}${fmt(d) ? " · " + fmt(d) + " away" : ""} · <span class="chip ok">KYC verified</span></span>
         <span class="meta rating">${ratingText(ratingOf(reviews, r.id))}</span>
       </div>
       <div class="result-actions">
@@ -214,36 +240,26 @@ function render() {
         ${r.website ? `<a class="btn ghost small" href="${esc(r.website)}" target="_blank" rel="noopener">Website</a>` : ""}
       </div>
     </li>`).join("")
-    : `<li class="empty">No verified sellers match. Try a wider distance or another category.</li>`;
+    : `<li class="empty">No verified sellers match. Try another state, city, pin code or category.</li>`;
 }
 
 async function savePlace(fields) {
   try { await updateDoc(doc(db, "buyers", auth.currentUser.uid), fields); } catch { /* the search still works without saving */ }
 }
 
-$("#pin-form").onsubmit = (e) => {
-  e.preventDefault();
-  const pin = $("#pin-input").value.trim(), msg = $("#loc-msg");
-  if (!/^[1-9]\d{5}$/.test(pin)) { msg.textContent = "Enter a 6-digit pin code, like 400001."; return; }
-  const p = PINS[pin] || sellers.find((r) => r.pin === pin && r.lat != null);
-  msg.textContent = p ? "" : `We don't have a map location for ${pin} yet, so results aren't sorted by distance.`;
-  setPlace(p ? { lat: p.lat, lng: p.lng } : null, pin, PINS[pin]?.place || `Pin code ${pin}`);
-  if (!p) $("#f-radius").value = "";
-  savePlace({ pin, lat: p ? p.lat : null, lng: p ? p.lng : null });
-};
-
 $("#geo-btn").onclick = () => {
   const msg = $("#loc-msg");
-  if (!navigator.geolocation) { msg.textContent = "This browser can't share location. Enter your pin code instead."; return; }
+  if (!navigator.geolocation) { msg.textContent = "This browser can't share location. Type your state, city or pin code instead."; return; }
   msg.textContent = "Finding your location…";
   navigator.geolocation.getCurrentPosition((pos) => {
     const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
     const [pin, p] = Object.entries(PINS).sort((a, b) => km(loc, a[1]) - km(loc, b[1]))[0];
-    msg.textContent = `Using your live location (${loc.lat.toFixed(3)}, ${loc.lng.toFixed(3)}).`;
-    $("#pin-input").value = "";
-    setPlace(loc, null, `Your location, near ${p.place}`);
+    msg.textContent = `Using your live location, near ${p.place}. Choose a distance below.`;
+    here = loc; liveLocation = true;
+    $("#f-radius-label").hidden = false;
+    fillPlaceOptions(); render();
     savePlace({ lat: loc.lat, lng: loc.lng });
-  }, () => { msg.textContent = "Location access was blocked. Allow location for this site, or enter your pin code."; },
+  }, () => { msg.textContent = "Location access was blocked. Allow location for this site, or type your state, city or pin code."; },
   { enableHighAccuracy: true, timeout: 10000 });
 };
 
@@ -266,13 +282,11 @@ async function enter(user) {
     $("#results").innerHTML = `<li class="empty">Couldn't load sellers: ${esc(err.message)}</li>`;
     return;
   }
-  if (me?.lat != null) {
-    $("#pin-input").value = me.pin || "";
-    setPlace({ lat: me.lat, lng: me.lng }, me.pin, PINS[me.pin]?.place || (me.pin ? `Pin code ${me.pin}` : "Your saved location"));
-  } else if (me?.pin) {
-    $("#pin-input").value = me.pin;
-    setPlace(null, me.pin, `Pin code ${me.pin}`);
-  } else render();
+  // The search starts blank; the shopper's saved location only orders results, nearest first.
+  const saved = me?.lat != null ? me : PINS[me?.pin];
+  savedHere = here = saved ? { lat: saved.lat, lng: saved.lng } : null;
+  fillPlaceOptions();
+  render();
 }
 
 // ---------- Session
