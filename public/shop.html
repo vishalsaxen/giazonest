@@ -131,18 +131,29 @@
       </div>
     </header>
 
-    <section class="locbar" aria-labelledby="find-title">
+    <section class="locbar place-bar" aria-labelledby="find-title">
       <div>
         <h1 id="find-title">Find sellers near you</h1>
-        <div class="where">Searching around <span class="pin" id="cur-pin">—</span> <span id="cur-place">Set your pin code or use your location</span></div>
+        <div class="where" id="where" aria-live="polite">Showing sellers in every state</div>
       </div>
-      <form class="loc-controls" id="pin-form" novalidate>
-        <label for="pin-input">Pin code
-          <input id="pin-input" type="text" inputmode="numeric" maxlength="6" placeholder="Type Pin code">
+      <form class="place-search" id="place-form" novalidate autocomplete="off">
+        <label for="place-state">State
+          <input id="place-state" type="text" list="state-options" placeholder="Type State Name">
         </label>
-        <button class="btn" type="submit">Set</button>
-        <button class="btn ghost" type="button" id="geo-btn">📍 Use my location</button>
-        <div id="loc-msg" class="hint" style="flex-basis:100%" aria-live="polite"></div>
+        <label for="place-city">City
+          <input id="place-city" type="text" list="city-options" placeholder="Type City Name">
+        </label>
+        <label for="place-pin">Pin code
+          <input id="place-pin" type="text" inputmode="numeric" maxlength="6" list="pin-options" placeholder="Type Pin code">
+        </label>
+        <div class="place-actions">
+          <button class="btn ghost" type="button" id="place-clear">Clear</button>
+          <button class="btn ghost" type="button" id="geo-btn">📍 Use my location</button>
+        </div>
+        <datalist id="state-options"></datalist>
+        <datalist id="city-options"></datalist>
+        <datalist id="pin-options"></datalist>
+        <div id="loc-msg" class="hint" style="grid-column:1/-1" aria-live="polite"></div>
       </form>
     </section>
 
@@ -160,7 +171,7 @@
         <label for="f-type" id="f-type-label" hidden>Type
           <select id="f-type"><option value="">All</option></select>
         </label>
-        <label for="f-radius">Distance
+        <label for="f-radius" id="f-radius-label" hidden>Distance
           <select id="f-radius">
             <option value="5">Within 5 km</option>
             <option value="10">Within 10 km</option>
