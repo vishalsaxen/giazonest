@@ -14,6 +14,9 @@ import { checkContact } from "./contacts.js?v=dev";
 import { checkKyc, readKyc, fillKyc, wireKycSkips } from "./kyc.js?v=dev";
 import { fieldsFor, stockLabel, itemWord, sellingPrice, rupees } from "./product-fields.js?v=dev";
 import { shrink, thumb } from "./photos.js?v=dev";
+import { fillStates, autofillFromPin, stateFromPin } from "./places.js?v=dev";
+import { termsGate, wireTermsLink, TERMS_VERSION } from "./terms.js?v=dev";
+import { ratingOf, ratingText, starString } from "./ratings.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
 if (firebaseConfig.apiKey.startsWith("PASTE")) {
@@ -117,6 +120,8 @@ const fillSubs = (sub = "", type = "") => {
 catSel.onchange = () => fillSubs();
 subSel.onchange = () => fillTypes();
 wireKycSkips("sk-");
+fillStates($("#sh-state"));
+autofillFromPin($("#sh-pin"), $("#sh-state"), $("#sh-city"), (t) => ($("#sh-city-note").textContent = t));
 
 $("#sh-geo").onclick = () => {
   const msg = $("#sh-geo-msg");
@@ -146,6 +151,7 @@ function showStatus() {
     ? "Your KYC details are locked after verification. To change them, contact GiaZoNest."
     : "GiaZoNest checks these before your shop goes live. If you don't have one, tick \"Not available\".";
   $("#products-panel").hidden = !shop;
+  $("#ratings-panel").hidden = !shop;
 }
 
 function fillShop() {
@@ -154,6 +160,8 @@ function fillShop() {
   catSel.value = r.category || "";
   fillSubs(r.subCategory || "", r.type || "");
   $("#sh-pin").value = r.pin || "";
+  $("#sh-state").value = r.state || stateFromPin(r.pin) || "";
+  $("#sh-city").value = r.city || "";
   $("#sh-email").value = r.email || me.email || "";
   $("#sh-whatsapp").value = r.whatsapp || "";
   $("#sh-website").value = r.website || "";
@@ -169,12 +177,16 @@ $("#shop-form").onsubmit = async (e) => {
   if (!category || !subCategory) return show(m, "Choose a category and a sub-category.", "bad");
   if (typesOf(category, subCategory).length && !type) return show(m, "Choose a type.", "bad");
   if (!/^[1-9]\d{5}$/.test(pin)) return show(m, "Enter your shop's 6-digit pin code.", "bad");
+  const state = $("#sh-state").value, city = $("#sh-city").value.trim();
+  if (!state) return show(m, "Choose your state.", "bad");
+  if (!city) return show(m, "Enter your city.", "bad");
   const contact = { email: $("#sh-email").value.trim().toLowerCase(), whatsapp: $("#sh-whatsapp").value.trim(), website: $("#sh-website").value.trim() };
   const badContact = checkContact(contact);
   if (badContact) return show(m, badContact.replace("the seller's", "your"), "bad");
   const loc = geo || (shop?.pin === pin && shop.lat != null ? { lat: shop.lat, lng: shop.lng } : PINS[pin] || null);
-  const data = { name, category, subCategory, type: type || null, pin, ...contact,
+  const data = { name, category, subCategory, type: type || null, pin, state, city, ...contact,
     lat: loc ? loc.lat : null, lng: loc ? loc.lng : null, owner: me.displayName || "", updatedAt: serverTimestamp() };
+  if (shop?.termsVersion !== TERMS_VERSION) Object.assign(data, { termsVersion: TERMS_VERSION, termsAcceptedAt: serverTimestamp() });
   const locked = shop && (shop.status === "Verified" || shop.status === "Suspended");
   if (!locked) {
     const kyc = readKyc("sk-");
@@ -195,6 +207,18 @@ $("#shop-form").onsubmit = async (e) => {
   } catch (err) { show(m, `Couldn't save: ${err.message}`, "bad"); }
   finally { $("#sh-save").disabled = false; }
 };
+
+// ---------- Ratings from shoppers
+async function loadReviews() {
+  const snap = await getDocs(query(collection(db, "reviews"), where("sellerId", "==", me.uid)));
+  const list = snap.docs.map((d) => d.data()).sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
+  $("#rating-count").textContent = list.length;
+  $("#rating-avg").textContent = list.length ? ratingText(ratingOf(list, me.uid)) : "";
+  $("#rating-list").innerHTML = list.length ? list.map((x) => `<li>
+      <span class="stars-static" aria-label="${x.stars} out of 5">${starString(x.stars)}</span> <b>${esc(x.name || "Shopper")}</b>
+      ${x.text ? `<p>${esc(x.text)}</p>` : ""}
+    </li>`).join("") : `<li class="empty">No ratings yet. Shoppers can rate you once your shop is verified.</li>`;
+}
 
 // ---------- Products
 // Products show on the shop only while the seller is verified (publicSellers has their listing).
@@ -399,10 +423,22 @@ async function enter(user) {
     show($("#status-banner"), `Couldn't load your shop: ${err.message}`, "bad");
     return;
   }
+  // Records that this seller accepted the current terms (they accepted on the terms screen to get here).
+  if (shop && shop.termsVersion !== TERMS_VERSION) {
+    updateDoc(doc(db, "sellers", user.uid), { termsVersion: TERMS_VERSION, termsAcceptedAt: serverTimestamp() })
+      .then(() => (shop.termsVersion = TERMS_VERSION)).catch(() => {});
+  }
   fillShop();
   showStatus();
-  if (shop) await loadProducts().catch((err) => ($("#products-note").textContent = `Couldn't load products: ${err.message}`));
+  if (shop) {
+    await loadProducts().catch((err) => ($("#products-note").textContent = `Couldn't load products: ${err.message}`));
+    loadReviews().catch(() => ($("#rating-list").innerHTML = `<li class="empty">Couldn't load ratings.</li>`));
+  }
 }
+
+// The seller terms must be accepted on this device before anything else opens.
+wireTermsLink("seller");
+await termsGate("seller");
 
 onAuthStateChanged(auth, (user) => {
   if (user && user.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {

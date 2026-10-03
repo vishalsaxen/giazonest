@@ -92,16 +92,22 @@
       </div>
     </header>
 
+    <nav class="tabs" role="tablist" aria-label="Admin sections">
+      <button type="button" class="tab" role="tab" id="tab-btn-overview" data-tab="overview" aria-controls="tab-overview" aria-selected="true">Overview</button>
+      <button type="button" class="tab" role="tab" id="tab-btn-kyc" data-tab="kyc" aria-controls="tab-kyc" aria-selected="false">KYC list <span class="count" id="kyc-pending-count">0</span></button>
+    </nav>
+
+    <div id="tab-overview" role="tabpanel" aria-labelledby="tab-btn-overview" class="stack">
     <section class="locbar" aria-labelledby="loc-title">
       <div>
         <h1 id="loc-title">Sellers and buyers near you</h1>
-        <div class="where" id="where">
-          Showing <span class="pin" id="cur-pin">110001</span> <span id="cur-place">Connaught Place, New Delhi</span>
+        <div class="where" id="where" hidden>
+          Showing <span class="pin" id="cur-pin"></span> <span id="cur-place"></span>
         </div>
       </div>
       <form class="loc-controls" id="pin-form" novalidate>
         <label for="pin-input">Pin code
-          <input id="pin-input" type="text" inputmode="numeric" maxlength="6" placeholder="e.g. 400001" value="110001">
+          <input id="pin-input" type="text" inputmode="numeric" maxlength="6" placeholder="Type Pin code">
         </label>
         <button class="btn" type="submit">Search</button>
         <button class="btn ghost" type="button" id="geo-btn">📍 Use my location</button>
@@ -131,6 +137,49 @@
         <ul class="list" id="buyers-list"></ul>
       </section>
     </div>
+    </div>
+
+    <!-- KYC list: every seller with state, city and pin code -->
+    <section id="tab-kyc" class="panel" role="tabpanel" aria-labelledby="tab-btn-kyc" hidden>
+      <div class="panel-head">
+        <h2>KYC list <span class="count" id="kl-count">0</span></h2>
+        <span class="hint" id="kl-note"></span>
+      </div>
+      <div class="stats" id="kl-stats"></div>
+      <form class="kl-filters" id="kl-filters" novalidate>
+        <label for="kl-state">State
+          <select id="kl-state"><option value="">All states</option></select>
+        </label>
+        <label for="kl-city">City
+          <select id="kl-city"><option value="">All cities</option></select>
+        </label>
+        <label for="kl-pin">Pin code
+          <input id="kl-pin" type="text" inputmode="numeric" maxlength="6" placeholder="Type Pin code">
+        </label>
+        <label for="kl-status">KYC
+          <select id="kl-status">
+            <option value="">All</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </label>
+      </form>
+      <h3 class="mini-h">By state</h3>
+      <div class="table-wrap">
+        <table class="kyc-table" id="kl-by-state">
+          <thead><tr><th scope="col">State</th><th scope="col">Approved</th><th scope="col">Pending</th><th scope="col">Rejected</th><th scope="col">Total</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <h3 class="mini-h">Sellers</h3>
+      <div class="table-wrap">
+        <table class="kyc-table" id="kl-table">
+          <thead><tr><th scope="col">Shop</th><th scope="col">State</th><th scope="col">City</th><th scope="col">Pin code</th><th scope="col">KYC</th><th scope="col"><span class="sr-only">Review</span></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
     <p class="example" id="data-note">Sellers and buyers are loaded from Firestore.</p>
   </div>
 </main>
@@ -179,6 +228,13 @@
       </label>
       <label for="as-pin">Pin code *
         <input id="as-pin" type="text" inputmode="numeric" maxlength="6" required>
+      </label>
+      <label for="as-state">State *
+        <select id="as-state" required></select>
+      </label>
+      <label for="as-city">City *
+        <input id="as-city" type="text" maxlength="60" required>
+        <span class="hint" id="as-city-note"></span>
       </label>
       <label for="as-email">Email *
         <input id="as-email" type="email" autocomplete="off" placeholder="shop@example.com" required>
@@ -248,6 +304,12 @@
         </label>
       </div>
       <div class="kyc-grid">
+        <label for="kyc-state">State
+          <select id="kyc-state"></select>
+        </label>
+        <label for="kyc-city">City
+          <input id="kyc-city" type="text" maxlength="60">
+        </label>
         <label for="kyc-email">Email *
           <input id="kyc-email" type="email" autocomplete="off">
         </label>
@@ -264,6 +326,10 @@
       <div class="stack" style="gap:8px" id="kyc-products-box">
         <h3 class="mini-h">Products <span class="count" id="kyc-product-count">0</span></h3>
         <ul class="products compact" id="kyc-products"></ul>
+      </div>
+      <div class="stack" style="gap:8px">
+        <h3 class="mini-h">Ratings and feedback <span class="count" id="kyc-rating-count">0</span> <span class="hint" id="kyc-rating-avg"></span></h3>
+        <ul class="reviews" id="kyc-reviews"></ul>
       </div>
       <p class="hint" id="kyc-review"></p>
       <div id="kyc-msg" class="msg" hidden></div>

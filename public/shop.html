@@ -11,8 +11,24 @@
 </head>
 <body>
 
+<!-- ============ TERMS & CONDITIONS (accept to continue) ============ -->
+<main id="terms-view" class="view" hidden>
+  <div class="wrap terms-wrap">
+    <header class="top"><div class="logo"><span class="mark">GZ</span>GiaZoNest</div></header>
+    <section class="panel terms-panel" aria-labelledby="terms-h">
+      <div>
+        <h1 id="terms-h">Before you start</h1>
+        <p class="sub">Please read and accept the GiaZoNest Buyer Terms &amp; Conditions to continue.</p>
+      </div>
+      <div class="terms-body" id="terms-body" tabindex="0">Loading the terms…</div>
+      <label class="agree" for="terms-agree"><input type="checkbox" data-terms id="terms-agree"> I have read and agree to the GiaZoNest Buyer Terms &amp; Conditions.</label>
+      <button class="btn" type="button" id="terms-accept" disabled>Accept and continue</button>
+    </section>
+  </div>
+</main>
+
 <!-- ============ SIGN IN / CREATE ACCOUNT ============ -->
-<main id="auth-view" class="view">
+<main id="auth-view" class="view" hidden>
   <div class="auth">
     <aside class="auth-side">
       <div class="logo"><span class="mark">GZ</span>GiaZoNest</div>
@@ -122,7 +138,7 @@
       </div>
       <form class="loc-controls" id="pin-form" novalidate>
         <label for="pin-input">Pin code
-          <input id="pin-input" type="text" inputmode="numeric" maxlength="6" placeholder="e.g. 400001">
+          <input id="pin-input" type="text" inputmode="numeric" maxlength="6" placeholder="Type Pin code">
         </label>
         <button class="btn" type="submit">Set</button>
         <button class="btn ghost" type="button" id="geo-btn">📍 Use my location</button>
@@ -168,6 +184,35 @@
   </div>
 </main>
 
+<!-- Rate a seller -->
+<div class="overlay" id="rate-dialog" hidden>
+  <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="rate-title">
+    <div class="row">
+      <h2 id="rate-title" style="font-size:1.25rem"></h2>
+      <span class="hint" id="rate-summary"></span>
+    </div>
+    <form id="rate-form" class="stack" novalidate>
+      <fieldset class="stars-field">
+        <legend>Your rating *</legend>
+        <div class="stars"><input type="radio" name="stars" id="star-5" value="5"><label for="star-5" title="5 stars">★</label><input type="radio" name="stars" id="star-4" value="4"><label for="star-4" title="4 stars">★</label><input type="radio" name="stars" id="star-3" value="3"><label for="star-3" title="3 stars">★</label><input type="radio" name="stars" id="star-2" value="2"><label for="star-2" title="2 stars">★</label><input type="radio" name="stars" id="star-1" value="1"><label for="star-1" title="1 star">★</label></div>
+      </fieldset>
+      <label for="rate-text">Feedback <span class="hint">optional</span>
+        <textarea id="rate-text" rows="3" maxlength="500" placeholder="How was your experience with this seller?"></textarea>
+      </label>
+      <div id="rate-msg" class="msg" hidden></div>
+      <div class="row">
+        <button type="button" class="btn ghost danger" id="rate-delete" hidden>Delete my review</button>
+        <div class="row" style="gap:8px;margin-left:auto">
+          <button type="button" class="btn ghost" id="rate-cancel">Close</button>
+          <button type="submit" class="btn" id="rate-save">Post review</button>
+        </div>
+      </div>
+    </form>
+    <h3 class="mini-h">What shoppers say</h3>
+    <ul class="reviews" id="rate-list"></ul>
+  </div>
+</div>
+
 <!-- Product details -->
 <div class="overlay" id="product-dialog" hidden>
   <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="pv-name">
@@ -185,6 +230,20 @@
     <dl class="details" id="pv-details"></dl>
     <p class="meta" id="pv-seller"></p>
     <div class="result-actions" id="pv-actions"></div>
+  </div>
+</div>
+
+<footer class="site-foot">
+  Need help? Email <a href="mailto:gizee@giazonest.com">gizee@giazonest.com</a> · <a href="#" id="show-terms">Terms &amp; Conditions</a>
+</footer>
+
+<div class="overlay" id="terms-dialog" hidden>
+  <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="terms-dialog-title">
+    <div class="row">
+      <h2 id="terms-dialog-title" style="font-size:1.25rem">Terms &amp; Conditions</h2>
+      <button type="button" class="btn ghost small" id="terms-close">Close</button>
+    </div>
+    <div class="terms-body" id="terms-dialog-body"></div>
   </div>
 </div>
 

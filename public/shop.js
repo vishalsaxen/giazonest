@@ -4,12 +4,14 @@ import {
   updateProfile, signOut, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, collection, getDocs, getDoc, doc, writeBatch, updateDoc, serverTimestamp, query, where
+  getFirestore, collection, getDocs, getDoc, doc, writeBatch, updateDoc, setDoc, deleteDoc, serverTimestamp, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig, SUPER_ADMIN_EMAIL } from "./firebase-config.js?v=dev";
 import { PINS } from "./pincodes.js?v=dev";
 import { CATEGORIES, subsOf, typesOf } from "./categories.js?v=dev";
 import { fieldsFor, itemWord, sellingPrice, rupees } from "./product-fields.js?v=dev";
+import { termsGate, wireTermsLink, TERMS_VERSION } from "./terms.js?v=dev";
+import { ratingOf, ratingText, starString } from "./ratings.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
 if (firebaseConfig.apiKey.startsWith("PASTE")) {
@@ -105,7 +107,8 @@ $("#signup-form").onsubmit = async (e) => {
     batch.set(doc(db, "buyers", cred.user.uid), {
       name, userId: user, email, phone, pin: pin || null,
       lat: loc ? loc.lat : null, lng: loc ? loc.lng : null,
-      orders: 0, status: "New", createdAt: serverTimestamp()
+      orders: 0, status: "New", createdAt: serverTimestamp(),
+      termsVersion: TERMS_VERSION, termsAcceptedAt: serverTimestamp()
     });
     await batch.commit();
     creating = false;
@@ -130,7 +133,7 @@ $("#forgot-form").onsubmit = async (e) => {
 $("#sign-out").onclick = () => signOut(auth);
 
 // ---------- Search
-let me = null, here = null, sellers = [], products = [];
+let me = null, here = null, sellers = [], products = [], reviews = [];
 const catSel = $("#f-cat"), subSel = $("#f-sub"), typeSel = $("#f-type");
 const opt = (v, label = v) => { const o = document.createElement("option"); o.value = v; o.textContent = label; return o; };
 Object.keys(CATEGORIES).forEach((c) => catSel.append(opt(c)));
@@ -201,9 +204,11 @@ function render() {
       <div class="result-main">
         <span class="name">${esc(r.name)}</span>
         <span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""}</span>
-        <span class="meta">Pin ${esc(r.pin)}${fmt(d) ? " · " + fmt(d) + " away" : ""} · <span class="chip ok">KYC verified</span></span>
+        <span class="meta">Pin ${esc(r.pin)}${r.city ? ", " + esc(r.city) : ""}${fmt(d) ? " · " + fmt(d) + " away" : ""} · <span class="chip ok">KYC verified</span></span>
+        <span class="meta rating">${ratingText(ratingOf(reviews, r.id))}</span>
       </div>
       <div class="result-actions">
+        <button type="button" class="btn ghost small" data-rate="${esc(r.id)}">${reviews.some((x) => x.sellerId === r.id && x.uid === auth.currentUser?.uid) ? "Edit my rating" : "Rate"}</button>
         ${r.whatsapp ? `<a class="btn small" href="${whatsappLink(r)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
         ${r.email ? `<a class="btn ghost small" href="mailto:${esc(r.email)}">Email</a>` : ""}
         ${r.website ? `<a class="btn ghost small" href="${esc(r.website)}" target="_blank" rel="noopener">Website</a>` : ""}
@@ -250,9 +255,13 @@ async function enter(user) {
   try {
     const [pub, mine, prods] = await Promise.all([getDocs(collection(db, "publicSellers")), getDoc(doc(db, "buyers", user.uid)),
       getDocs(query(collection(db, "products"), where("live", "==", true)))]);
+    reviews = (await getDocs(collection(db, "reviews")).catch(() => ({ docs: [] }))).docs.map((d) => ({ id: d.id, ...d.data() }));
     sellers = pub.docs.map((d) => ({ id: d.id, ...d.data() }));
     products = prods.docs.map((d) => ({ id: d.id, ...d.data() }));
     me = mine.exists() ? mine.data() : null;
+    // Records that this shopper accepted the current terms (they accepted on the terms screen to get here).
+    if (me && me.termsVersion !== TERMS_VERSION)
+      updateDoc(doc(db, "buyers", user.uid), { termsVersion: TERMS_VERSION, termsAcceptedAt: serverTimestamp() }).catch(() => {});
   } catch (err) {
     $("#results").innerHTML = `<li class="empty">Couldn't load sellers: ${esc(err.message)}</li>`;
     return;
@@ -268,6 +277,10 @@ async function enter(user) {
 
 // ---------- Session
 let creating = false;
+// The buyer terms must be accepted on this device before the shop opens.
+wireTermsLink("buyer");
+await termsGate("buyer");
+
 onAuthStateChanged(auth, (user) => {
   if (creating) return; // the sign-up handler enters once the profile is saved
   if (user && user.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
@@ -305,7 +318,7 @@ $("#product-results").addEventListener("click", async (e) => {
   const labels = Object.fromEntries(fieldsFor(p.category, p.subCategory).map((f) => [f.key, f.label]));
   $("#pv-details").innerHTML = [["Category", [p.subCategory, p.type].filter(Boolean).join(" › ")], ...Object.entries(p.details || {}).map(([k, v]) => [labels[k] || k, v])]
     .filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
-  $("#pv-seller").innerHTML = `Sold by <b>${esc(s.name || p.sellerName)}</b>${s.pin ? ` · Pin ${esc(s.pin)}` : ""}${fmt(km(here, s)) ? ` · ${fmt(km(here, s))} away` : ""} · <span class="chip ok">KYC verified</span>`;
+  $("#pv-seller").innerHTML = `Sold by <b>${esc(s.name || p.sellerName)}</b> · ${ratingText(ratingOf(reviews, p.sellerId))}${s.pin ? ` · Pin ${esc(s.pin)}` : ""}${fmt(km(here, s)) ? ` · ${fmt(km(here, s))} away` : ""} · <span class="chip ok">KYC verified</span>`;
   $("#pv-actions").innerHTML = [
     s.whatsapp && p.stock > 0 ? `<a class="btn" href="${whatsappLink(s, `Hi ${s.name}, I'd like to buy ${p.name} (${rupees(sellingPrice(p))}) that I saw on GiaZoNest.`)}" target="_blank" rel="noopener">Buy on WhatsApp</a>` : "",
     s.whatsapp && p.stock <= 0 ? `<a class="btn ghost" href="${whatsappLink(s, `Hi ${s.name}, will ${p.name} be back in stock?`)}" target="_blank" rel="noopener">Ask on WhatsApp</a>` : "",
@@ -325,3 +338,66 @@ $("#product-results").addEventListener("click", async (e) => {
     $("#pv-strip").innerHTML = srcs.length > 1 ? srcs.map((src, i) => `<li><button type="button" data-src="${src}" aria-label="Photo ${i + 1}"><img src="${src}" alt=""></button></li>`).join("") : "";
   } catch { /* the cover thumbnail is still shown */ }
 });
+
+// ---------- Ratings and feedback
+const rd = $("#rate-dialog");
+let rating = null; // the seller being rated
+const myReview = (sellerId) => reviews.find((x) => x.sellerId === sellerId && x.uid === auth.currentUser?.uid);
+function renderReviews() {
+  const list = reviews.filter((x) => x.sellerId === rating.id)
+    .sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
+  $("#rate-summary").textContent = ratingText(ratingOf(reviews, rating.id));
+  $("#rate-list").innerHTML = list.length ? list.map((x) => `<li>
+      <span class="stars-static" aria-label="${x.stars} out of 5">${starString(x.stars)}</span>
+      <b>${esc(x.name || "Shopper")}</b>${x.uid === auth.currentUser?.uid ? " <span class=\"hint\">(you)</span>" : ""}
+      ${x.text ? `<p>${esc(x.text)}</p>` : ""}
+    </li>`).join("") : `<li class="empty">No reviews yet. Be the first.</li>`;
+}
+const closeRate = () => { rd.hidden = true; rating = null; };
+$("#results").addEventListener("click", (e) => {
+  const id = e.target.closest("[data-rate]")?.dataset.rate;
+  rating = sellers.find((r) => r.id === id);
+  if (!rating) return;
+  const mine = myReview(id);
+  $("#rate-form").reset();
+  $("#rate-msg").hidden = true;
+  $("#rate-title").textContent = `Rate ${rating.name}`;
+  if (mine) { $(`#star-${mine.stars}`).checked = true; $("#rate-text").value = mine.text || ""; }
+  $("#rate-delete").hidden = !mine;
+  $("#rate-save").textContent = mine ? "Update review" : "Post review";
+  renderReviews();
+  rd.hidden = false;
+  $(`#star-${mine?.stars || 5}`).focus();
+});
+$("#rate-cancel").onclick = closeRate;
+rd.addEventListener("keydown", (e) => { if (e.key === "Escape") closeRate(); });
+
+$("#rate-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const m = $("#rate-msg"), stars = Number(document.querySelector("#rate-form [name=stars]:checked")?.value || 0);
+  if (!stars) return show(m, "Tap a star to rate this seller.", "bad");
+  const uid = auth.currentUser.uid, mine = myReview(rating.id);
+  const data = { sellerId: rating.id, uid, name: (me?.name || auth.currentUser.displayName || "Shopper").slice(0, 60),
+    stars, text: $("#rate-text").value.trim(), updatedAt: serverTimestamp(), createdAt: mine?.createdAt || serverTimestamp() };
+  $("#rate-save").disabled = true;
+  try {
+    await setDoc(doc(db, "reviews", `${rating.id}_${uid}`), data);
+    reviews = reviews.filter((x) => x !== mine).concat({ id: `${rating.id}_${uid}`, ...data, updatedAt: { seconds: Date.now() / 1000 } });
+    show(m, "Thanks! Your review is posted.", "ok");
+    $("#rate-delete").hidden = false;
+    $("#rate-save").textContent = "Update review";
+    renderReviews();
+    render();
+  } catch (err) { show(m, `Couldn't post your review: ${err.message}`, "bad"); }
+  finally { $("#rate-save").disabled = false; }
+};
+$("#rate-delete").onclick = async () => {
+  const mine = myReview(rating.id);
+  if (!mine || !confirm("Delete your review of this seller?")) return;
+  try {
+    await deleteDoc(doc(db, "reviews", mine.id));
+    reviews = reviews.filter((x) => x !== mine);
+    closeRate();
+    render();
+  } catch (err) { show($("#rate-msg"), `Couldn't delete: ${err.message}`, "bad"); }
+};

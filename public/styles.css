@@ -215,3 +215,54 @@ label.na { flex-direction: row; align-items: center; gap: 6px; font-weight: 500;
 .portal { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 700; letter-spacing: .06em; }
 .portal:hover { border-color: var(--brand); }
 .portal svg { width: 28px; height: 28px; fill: none; stroke: var(--brand); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* Terms & Conditions: shown before sign-in on the seller and shop pages */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.terms-wrap { max-width: 760px; display: flex; flex-direction: column; gap: 18px; }
+.terms-panel h1 { font-size: 1.5rem; }
+.terms-body { max-height: 55vh; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; padding: 4px 18px 14px; background: var(--ground); font-size: .92rem; overscroll-behavior: contain; }
+.dialog .terms-body { max-height: none; overflow: visible; background: none; border: 0; padding: 0; }
+.terms-body h2 { font-size: 1.15rem; margin: 16px 0 6px; }
+.terms-body h3 { font-size: 1rem; margin: 16px 0 4px; }
+.terms-body h4 { font-size: .92rem; margin: 12px 0 2px; }
+.terms-body p, .terms-body ul, .terms-body ol { margin: 6px 0; }
+.terms-body ul, .terms-body ol { padding-left: 20px; }
+.terms-body hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
+.fee-box { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent); background: color-mix(in srgb, var(--brand) 8%, transparent); overflow-wrap: anywhere; }
+label.agree { flex-direction: row; align-items: flex-start; gap: 10px; font-weight: 600; }
+label.agree input { margin-top: 4px; flex: none; }
+.site-foot { max-width: 1120px; margin: 28px auto 0; text-align: center; font-size: .85rem; color: var(--muted); overflow-wrap: anywhere; }
+.site-foot a { color: var(--brand); font-weight: 700; }
+
+/* Star ratings. Radios are in 5..1 order and shown reversed, so ~ lights up the lower stars. */
+.stars-field { border: 0; padding: 0; margin: 0; }
+.stars-field legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
+.stars { display: inline-flex; flex-direction: row-reverse; gap: 2px; }
+.stars input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.stars label { font-size: 2rem; line-height: 1; cursor: pointer; color: var(--line); padding: 0 2px; transition: color .1s; }
+.stars input:checked ~ label, .stars label:hover, .stars label:hover ~ label { color: var(--brand); }
+.stars input:focus-visible + label { outline: 3px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
+.stars-static { color: var(--brand); letter-spacing: 1px; }
+.reviews { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.reviews li { padding: 10px 0; border-top: 1px solid var(--line); }
+.reviews li p { margin: 4px 0 0; overflow-wrap: anywhere; }
+.reviews .link { margin-left: 8px; font-size: .8rem; }
+.link.danger { color: var(--bad); }
+.meta.rating { color: var(--brand); font-weight: 600; }
+
+/* Admin tabs and the KYC list */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 4px 0 18px; overflow-x: auto; }
+.tab { background: none; border: 0; border-bottom: 3px solid transparent; padding: 10px 14px; font-weight: 700; cursor: pointer; color: var(--muted); display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--brand); }
+.kl-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; flex-direction: row; }
+@media (max-width: 760px) { .kl-filters { grid-template-columns: 1fr 1fr; } }
+.table-wrap { position: relative; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.kyc-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.kyc-table th, .kyc-table td { padding: 8px 12px; text-align: left; border-top: 1px solid var(--line); vertical-align: middle; }
+.kyc-table thead th { border-top: 0; background: var(--soft); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); white-space: nowrap; }
+.kyc-table tbody th { font-weight: 700; }
+.kyc-table td:nth-child(n+2):not(:last-child) { font-variant-numeric: tabular-nums; }
+.kyc-table td.empty { border-top: 1px solid var(--line); padding: 12px; }
+#kl-by-state td { text-align: right; }
+#kl-by-state thead th:not(:first-child) { text-align: right; }
+#kl-table td:last-child { text-align: right; }
