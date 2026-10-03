@@ -15,6 +15,6 @@ export function checkContact({ email, whatsapp, website }, allowBlank = false) {
 export function publicSeller(r) {
   const out = { name: r.name, category: r.category || "", subCategory: r.subCategory || "", pin: r.pin,
     lat: r.lat ?? null, lng: r.lng ?? null };
-  for (const k of ["type", "email", "whatsapp", "website"]) if (r[k]) out[k] = r[k];
+  for (const k of ["type", "email", "whatsapp", "website", "state", "city"]) if (r[k]) out[k] = r[k];
   return out;
 }

@@ -90,6 +90,24 @@ service cloud.firestore {
         && request.resource.data.status == resource.data.status
         && request.resource.data.orders == resource.data.orders;
     }
+    // Star ratings and optional feedback, one per shopper per seller, kept at
+    // reviews/{sellerId}_{shopper uid}. Signed-in people can read them; a
+    // shopper can write and delete only their own, and only for a verified shop.
+    match /reviews/{rid} {
+      function validReview() {
+        let r = request.resource.data;
+        return rid == r.sellerId + '_' + request.auth.uid
+          && r.uid == request.auth.uid
+          && r.sellerId != request.auth.uid
+          && r.stars is int && r.stars >= 1 && r.stars <= 5
+          && r.text is string && r.text.size() <= 500
+          && r.name is string && r.name.size() <= 80
+          && exists(/databases/$(database)/documents/publicSellers/$(r.sellerId));
+      }
+      allow read: if signedIn();
+      allow create, update: if signedIn() && validReview();
+      allow delete: if isSuperAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+    }
     // Everything else stays closed until a rule opens it.
     match /{document=**} {
       allow read, write: if false;
