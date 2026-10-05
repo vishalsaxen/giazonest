@@ -7,6 +7,7 @@ import {
   getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, writeBatch, doc, serverTimestamp, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig, SUPER_ADMIN_EMAIL } from "./firebase-config.js?v=dev";
+import "./formats.js?v=dev";
 import { PINS, EXAMPLE_SELLERS, EXAMPLE_BUYERS } from "./pincodes.js?v=dev";
 import { CATEGORIES, subsOf, typesOf } from "./categories.js?v=dev";
 import { checkContact, publicSeller } from "./contacts.js?v=dev";
@@ -199,11 +200,11 @@ function render() {
   const dist = (d) => anywhere ? "" : fmt(d);
   const rated = (id) => { const x = ratingOf(reviews, id); return x.n ? ` · ${ratingText(x)}` : ""; };
   $("#sellers-list").innerHTML = list(s, sNear, ({ r, d }) =>
-    `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${picked.has(r.id) ? " checked" : ""}><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · ${placeOf(r)}${countProducts(r.id) ? ` · ${countProducts(r.id)} products` : ""}${rated(r.id)}${r.ownerUid ? " · signed up" : ""}${viaPartner(r)}</span><span class="dist">${dist(d)}</span><button type="button" class="btn ghost small kyc-btn" data-seller="${esc(r.id)}">Review KYC</button></li>`);
+    `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${picked.has(r.id) ? " checked" : ""}><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · ${placeOf(r)}${countProducts(r.id) ? ` · ${countProducts(r.id)} products` : ""}${rated(r.id)}${r.ownerUid ? " · signed up" : ""}${viaPartner(r)}</span><span class="dist">${dist(d)}</span><span class="row-actions">${resetBtn(r.ownerUid && (r.loginEmail || r.email), r.name)}<button type="button" class="btn ghost small kyc-btn" data-seller="${esc(r.id)}">Review KYC</button></span></li>`);
   shownSellers = sNear.map((x) => x.r.id);
   syncPicks();
   $("#buyers-list").innerHTML = list(b, bNear, ({ r, d }) =>
-    `<li><span class="name">${esc(r.name)}</span><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${r.orders || 0} orders · Pin ${esc(r.pin || "not set")}${r.phone ? " · " + esc(r.phone) : ""}</span><span class="dist">${dist(d)}</span></li>`);
+    `<li><span class="name">${esc(r.name)}</span><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${r.orders || 0} orders · Pin ${esc(r.pin || "not set")}${r.phone ? " · " + esc(r.phone) : ""}</span><span class="dist">${dist(d)}</span><span class="row-actions">${resetBtn(!r.example && r.email, r.name)}</span></li>`);
   renderKycList();
 }
 
@@ -213,6 +214,25 @@ const viaPartner = (r) => r.partnerId ? ` · via partner ${esc(r.partnerId)}${r.
 // "New Delhi, Delhi · Pin 110001", with the state guessed from the pin when it isn't saved.
 const stateOf = (r) => r.state || stateFromPin(r.pin) || "";
 const placeOf = (r) => [r.city, stateOf(r)].filter(Boolean).map(esc).join(", ") + `${r.city || stateOf(r) ? " · " : ""}Pin ${esc(r.pin || "not set")}`;
+
+// ---------- Password resets
+// Passwords are never visible to anyone. This emails the person a link to choose a new one.
+const resetBtn = (email, name) => email
+  ? `<button type="button" class="btn ghost small" data-reset="${esc(email)}" data-name="${esc(name)}">Send password reset</button>` : "";
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-reset]");
+  if (!b) return;
+  const email = b.dataset.reset;
+  if (!confirm(`Email ${b.dataset.name} (${email}) a link to set a new password?`)) return;
+  b.disabled = true;
+  try {
+    await sendPasswordResetEmail(auth, email);
+    b.textContent = "Reset link sent ✓";
+  } catch (err) {
+    b.disabled = false;
+    alert(`Couldn't send the reset link to ${email}: ${authError(err)}`);
+  }
+});
 
 // ---------- Tabs
 document.querySelectorAll("[data-tab]").forEach((t) => (t.onclick = () => {
@@ -497,7 +517,7 @@ kd.addEventListener("keydown", (e) => { if (e.key === "Escape") closeKyc(); });
 async function saveKyc(action) {
   const m = $("#kyc-msg");
   const kyc = readKyc("kyc-");
-  const badKyc = checkKyc(kyc, action === "approve");
+  const badKyc = checkKyc(kyc, action === "approve", "kyc-");
   if (badKyc) return show(m, action === "approve" ? `To approve: ${badKyc[0].toLowerCase()}${badKyc.slice(1)}` : badKyc, "bad");
   const contact = { email: $("#kyc-email").value.trim().toLowerCase(), whatsapp: $("#kyc-whatsapp").value.trim(), website: $("#kyc-website").value.trim() };
   const badContact = checkContact(contact, action !== "approve");

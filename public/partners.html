@@ -92,13 +92,13 @@
               <input id="pa-name" type="text" maxlength="80" autocomplete="off" required>
             </label>
             <label for="pa-mobile">Mobile number *
-              <input id="pa-mobile" type="tel" inputmode="numeric" maxlength="10" autocomplete="off" placeholder="9876543210" required>
+              <input id="pa-mobile" data-format="mobile" type="tel" inputmode="numeric" autocomplete="off" placeholder="9876543210" required>
             </label>
             <label for="pa-pan">PAN card number *
-              <input id="pa-pan" type="text" maxlength="10" autocomplete="off" placeholder="ABCDE1234F" required>
+              <input id="pa-pan" data-format="caps" autocapitalize="characters" spellcheck="false" type="text" maxlength="10" autocomplete="off" placeholder="ABCDE1234F" required>
             </label>
             <label for="pa-aadhaar">Aadhaar card number *
-              <input id="pa-aadhaar" type="text" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="12 digits" required>
+              <input id="pa-aadhaar" data-format="digits" type="text" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="12 digits" required>
               <span class="hint">Only the last 4 digits are saved.</span>
             </label>
             <label for="pa-email">Email *
@@ -193,7 +193,7 @@
                 <select id="es-type"><option value="">Select type</option></select>
               </label>
               <label for="es-pin">Pin code *
-                <input id="es-pin" type="text" inputmode="numeric" maxlength="6" required>
+                <input id="es-pin" data-format="digits" type="text" inputmode="numeric" maxlength="6" required>
               </label>
               <label for="es-state">State *
                 <select id="es-state" required></select>
@@ -206,7 +206,7 @@
                 <input id="es-email" type="email" autocomplete="off" placeholder="shop@example.com" required>
               </label>
               <label for="es-whatsapp">WhatsApp number *
-                <input id="es-whatsapp" type="tel" inputmode="numeric" maxlength="10" placeholder="10-digit mobile number" required>
+                <input id="es-whatsapp" data-format="mobile" type="tel" inputmode="numeric" placeholder="10-digit mobile number" required>
               </label>
               <label for="es-website">Website <span class="hint">optional</span>
                 <input id="es-website" type="url" placeholder="https://">

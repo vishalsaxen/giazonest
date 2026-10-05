@@ -18,7 +18,8 @@ It is a static website (HTML, CSS, JavaScript) that uses Firebase for login (Aut
 - `public/contacts.js`: seller email, WhatsApp and website checks, and the public seller record
 - `public/categories.js`: seller categories, sub-categories and types
 - `public/seller.html`, `public/seller.js`: seller sign-up, shop details, KYC and products
-- `public/kyc.js`: KYC number checks and the "Not available" option, shared by the admin console and the seller page
+- `public/kyc.js`: KYC number checks and the "Not available" option, shared by the admin console and the seller page; sellers type the full 12-digit Aadhaar but only its last 4 digits are saved
+- `public/formats.js`: keeps mobile, Aadhaar, pin code and bank account boxes to digits, and PAN, GSTIN and IFSC in capitals, as people type
 - `public/product-fields.js`: the extra product details asked for in each category, and price helpers
 - `public/photos.js`: shrinks product photos in the browser before saving
 - `public/places.js`: Indian states, and the state and city for a pin code (city from the free India Post lookup at api.postalpincode.in)

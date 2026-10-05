@@ -149,7 +149,7 @@ input:focus { border-color: var(--brand); outline: none; box-shadow: 0 0 0 3px c
 .list li.pick { grid-template-columns: auto 1fr auto; }
 .list li.pick .pick-box { grid-row: 1 / span 3; align-self: start; margin-top: 3px; width: 18px; height: 18px; accent-color: var(--brand); }
 .list li.pick .meta { grid-column: 2; }
-.list li.pick .kyc-btn { grid-column: 3; }
+.list li.pick .row-actions { grid-column: 2 / -1; }
 .btn.danger:not(.ghost) { background: var(--bad); border-color: var(--bad); color: #fff; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .del-names { margin: 0; padding-left: 20px; max-height: 40vh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
@@ -286,3 +286,9 @@ label.agree input { margin-top: 4px; flex: none; }
 fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
 .portal-link { display: inline-flex; align-items: center; gap: 6px; }
 .portal-link svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Admin row buttons: password reset and Review KYC */
+.row-actions { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.help { font-size: .88rem; color: var(--muted); }
+.help summary { cursor: pointer; font-weight: 700; color: var(--ink); }
+.help p { margin: 6px 0 0; }

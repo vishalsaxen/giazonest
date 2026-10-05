@@ -78,14 +78,14 @@
               <input id="su-user" type="text" autocomplete="off" maxlength="20" placeholder="e.g. aditi_v" required>
             </label>
             <label for="su-phone">Mobile number *
-              <input id="su-phone" type="tel" inputmode="numeric" maxlength="10" autocomplete="tel-national" required>
+              <input id="su-phone" data-format="mobile" type="tel" inputmode="numeric" autocomplete="tel-national" required>
             </label>
           </div>
           <label for="su-email">Email *
             <input id="su-email" type="email" autocomplete="email" required>
           </label>
           <label for="su-pin">Pin code <span class="hint">you can change it later</span>
-            <input id="su-pin" type="text" inputmode="numeric" maxlength="6">
+            <input id="su-pin" data-format="digits" type="text" inputmode="numeric" maxlength="6">
           </label>
           <label for="su-pass">Password *
             <input id="su-pass" type="password" autocomplete="new-password" required>
@@ -144,7 +144,7 @@
           <input id="place-city" type="text" list="city-options" placeholder="Type City Name">
         </label>
         <label for="place-pin">Pin code
-          <input id="place-pin" type="text" inputmode="numeric" maxlength="6" list="pin-options" placeholder="Type Pin code">
+          <input id="place-pin" data-format="digits" type="text" inputmode="numeric" maxlength="6" list="pin-options" placeholder="Type Pin code">
         </label>
         <div class="place-actions">
           <button class="btn ghost" type="button" id="place-clear">Clear</button>
