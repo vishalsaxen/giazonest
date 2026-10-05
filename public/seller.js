@@ -8,6 +8,7 @@ import {
   serverTimestamp, increment
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig, SUPER_ADMIN_EMAIL } from "./firebase-config.js?v=dev";
+import "./formats.js?v=dev";
 import { PINS } from "./pincodes.js?v=dev";
 import { CATEGORIES, subsOf, typesOf } from "./categories.js?v=dev";
 import { checkContact } from "./contacts.js?v=dev";
@@ -185,12 +186,12 @@ $("#shop-form").onsubmit = async (e) => {
   if (badContact) return show(m, badContact.replace("the seller's", "your"), "bad");
   const loc = geo || (shop?.pin === pin && shop.lat != null ? { lat: shop.lat, lng: shop.lng } : PINS[pin] || null);
   const data = { name, category, subCategory, type: type || null, pin, state, city, ...contact,
-    lat: loc ? loc.lat : null, lng: loc ? loc.lng : null, owner: me.displayName || "", updatedAt: serverTimestamp() };
+    lat: loc ? loc.lat : null, lng: loc ? loc.lng : null, owner: me.displayName || "", loginEmail: me.email, updatedAt: serverTimestamp() };
   if (shop?.termsVersion !== TERMS_VERSION) Object.assign(data, { termsVersion: TERMS_VERSION, termsAcceptedAt: serverTimestamp() });
   const locked = shop && (shop.status === "Verified" || shop.status === "Suspended");
   if (!locked) {
     const kyc = readKyc("sk-");
-    const badKyc = checkKyc(kyc);
+    const badKyc = checkKyc(kyc, false, "sk-");
     if (badKyc) return show(m, badKyc, "bad");
     data.kyc = kyc;
     if (shop?.status === "KYC Rejected") data.status = "Pending KYC";
@@ -201,6 +202,7 @@ $("#shop-form").onsubmit = async (e) => {
     if (shop) await updateDoc(ref, data);
     else await setDoc(ref, { ...data, status: "Pending KYC", ownerUid: me.uid, createdAt: serverTimestamp() });
     shop = (await getDoc(ref)).data();
+    if (!locked) fillKyc("sk-", shop.kyc || {});
     geo = null;
     showStatus();
     show(m, "Saved.", "ok");

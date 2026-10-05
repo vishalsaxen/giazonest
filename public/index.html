@@ -112,7 +112,7 @@
       </div>
       <form class="loc-controls" id="pin-form" novalidate>
         <label for="pin-input">Pin code
-          <input id="pin-input" type="text" inputmode="numeric" maxlength="6" placeholder="Type Pin code">
+          <input id="pin-input" data-format="digits" type="text" inputmode="numeric" maxlength="6" placeholder="Type Pin code">
         </label>
         <button class="btn" type="submit">Search</button>
         <button class="btn ghost" type="button" id="geo-btn">📍 Use my location</button>
@@ -159,7 +159,7 @@
           <select id="kl-city"><option value="">All cities</option></select>
         </label>
         <label for="kl-pin">Pin code
-          <input id="kl-pin" type="text" inputmode="numeric" maxlength="6" placeholder="Type Pin code">
+          <input id="kl-pin" data-format="digits" type="text" inputmode="numeric" maxlength="6" placeholder="Type Pin code">
         </label>
         <label for="kl-status">KYC
           <select id="kl-status">
@@ -186,6 +186,12 @@
       </div>
     </section>
     <p class="example" id="data-note">Sellers and buyers are loaded from Firestore.</p>
+    <details class="help">
+      <summary>About seller and buyer passwords</summary>
+      <p>Nobody can see a seller's or buyer's password, including you. Firebase keeps passwords only in scrambled (hashed) form inside Authentication, not in the Firestore database, so a leaked database never exposes them.</p>
+      <p><b>To change a password:</b> click <b>Send password reset</b> next to the seller or buyer above. They get an email with a link to choose a new password. People can also use <b>Forgot password?</b> on the seller and shop sign-in pages.</p>
+      <p><b>To see every account:</b> Firebase console → Authentication → Users shows each email, when they signed up and when they last signed in. Its ⋮ menu can also disable or delete an account.</p>
+    </details>
   </div>
 </main>
 
@@ -232,7 +238,7 @@
         <select id="as-type"><option value="">Select type</option></select>
       </label>
       <label for="as-pin">Pin code *
-        <input id="as-pin" type="text" inputmode="numeric" maxlength="6" required>
+        <input id="as-pin" data-format="digits" type="text" inputmode="numeric" maxlength="6" required>
       </label>
       <label for="as-state">State *
         <select id="as-state" required></select>
@@ -245,7 +251,7 @@
         <input id="as-email" type="email" autocomplete="off" placeholder="shop@example.com" required>
       </label>
       <label for="as-whatsapp">WhatsApp number *
-        <input id="as-whatsapp" type="tel" inputmode="numeric" maxlength="10" placeholder="10-digit mobile number" required>
+        <input id="as-whatsapp" data-format="mobile" type="tel" inputmode="numeric" placeholder="10-digit mobile number" required>
       </label>
       <label for="as-website">Website <span class="hint">optional</span>
         <input id="as-website" type="url" placeholder="https://">
@@ -285,27 +291,27 @@
       <div class="kyc-grid">
         <div class="kyc-field">
           <label for="kyc-pan">PAN
-            <input id="kyc-pan" type="text" maxlength="10" autocomplete="off" placeholder="ABCDE1234F">
+            <input id="kyc-pan" data-format="caps" autocapitalize="characters" spellcheck="false" type="text" maxlength="10" autocomplete="off" placeholder="ABCDE1234F">
           </label>
           <label class="na" for="kyc-pan-na"><input type="checkbox" id="kyc-pan-na"> Not available</label>
         </div>
         <div class="kyc-field">
           <label for="kyc-gstin">GSTIN
-            <input id="kyc-gstin" type="text" maxlength="15" autocomplete="off" placeholder="27ABCDE1234F1Z5">
+            <input id="kyc-gstin" data-format="caps" autocapitalize="characters" spellcheck="false" type="text" maxlength="15" autocomplete="off" placeholder="27ABCDE1234F1Z5">
           </label>
           <label class="na" for="kyc-gstin-na"><input type="checkbox" id="kyc-gstin-na"> Not available</label>
         </div>
         <div class="kyc-field">
           <label for="kyc-account">Bank account number
-            <input id="kyc-account" type="text" inputmode="numeric" maxlength="18" autocomplete="off">
+            <input id="kyc-account" data-format="digits" type="text" inputmode="numeric" maxlength="18" autocomplete="off">
           </label>
           <label class="na" for="kyc-account-na"><input type="checkbox" id="kyc-account-na"> Not available</label>
         </div>
         <label for="kyc-ifsc">IFSC
-          <input id="kyc-ifsc" type="text" maxlength="11" autocomplete="off" placeholder="SBIN0001234">
+          <input id="kyc-ifsc" data-format="caps" autocapitalize="characters" spellcheck="false" type="text" maxlength="11" autocomplete="off" placeholder="SBIN0001234">
         </label>
-        <label for="kyc-aadhaarLast4">Aadhaar, last 4 digits
-          <input id="kyc-aadhaarLast4" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234">
+        <label for="kyc-aadhaar">Aadhaar number <span class="hint">only the last 4 digits are saved</span>
+          <input id="kyc-aadhaar" data-format="digits" type="text" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="12 digits">
         </label>
       </div>
       <div class="kyc-grid">
@@ -319,7 +325,7 @@
           <input id="kyc-email" type="email" autocomplete="off">
         </label>
         <label for="kyc-whatsapp">WhatsApp number *
-          <input id="kyc-whatsapp" type="tel" inputmode="numeric" maxlength="10" autocomplete="off">
+          <input id="kyc-whatsapp" data-format="mobile" type="tel" inputmode="numeric" autocomplete="off">
         </label>
         <label for="kyc-website" style="grid-column:1/-1">Website <span class="hint">optional</span>
           <input id="kyc-website" type="url" placeholder="https://">
