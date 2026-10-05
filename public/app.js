@@ -15,6 +15,7 @@ import { checkKyc, readKyc, fillKyc, wireKycSkips } from "./kyc.js?v=dev";
 import { sellingPrice, rupees, itemWord, fieldsFor } from "./product-fields.js?v=dev";
 import { fillStates, autofillFromPin, stateFromPin, lookupPin } from "./places.js?v=dev";
 import { ratingOf, ratingText, starString } from "./ratings.js?v=dev";
+import { partnerRows, partnerStats, wirePartnerReview } from "./partner-review.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
 const ADMIN = SUPER_ADMIN_EMAIL.toLowerCase();
@@ -108,7 +109,7 @@ $("#sign-out").onclick = () => signOut(auth);
 
 // ---------- Sellers and buyers
 // No location until the admin types a pin code or uses GPS; until then every record shows.
-let sellers = [], buyers = [], products = [], reviews = [], current = { origin: null, label: "", pin: "" };
+let sellers = [], buyers = [], products = [], reviews = [], partners = [], current = { origin: null, label: "", pin: "" };
 const RADIUS = 50; // km counted as "near"
 const chip = { "Verified": "ok", "Active": "ok", "Pending KYC": "warn", "New": "warn", "Suspended": "bad", "Flagged": "bad", "KYC Rejected": "bad" };
 const km = (a, b) => {
@@ -123,12 +124,13 @@ const stat = (n, t) => `<div class="stat"><b>${n.toLocaleString("en-IN")}</b><sp
 async function load() {
   $("#data-note").textContent = "Loading sellers and buyers…";
   try {
-    const [s, b, p, v] = await Promise.all([getDocs(collection(db, "sellers")), getDocs(collection(db, "buyers")), getDocs(collection(db, "products")),
-      getDocs(collection(db, "reviews")).catch(() => null)]);
+    const [s, b, p, v, pa] = await Promise.all([getDocs(collection(db, "sellers")), getDocs(collection(db, "buyers")), getDocs(collection(db, "products")),
+      getDocs(collection(db, "reviews")).catch(() => null), getDocs(collection(db, "partners")).catch(() => null)]);
     sellers = s.docs.map((d) => ({ id: d.id, ...d.data() }));
     buyers = b.docs.map((d) => ({ id: d.id, ...d.data() }));
     products = p.docs.map((d) => ({ id: d.id, ...d.data() }));
     reviews = v ? v.docs.map((d) => ({ id: d.id, ...d.data() })) : [];
+    partners = pa ? pa.docs.map((d) => ({ id: d.id, ...d.data() })) : [];
     await syncPublic();
     const hasExamples = [...sellers, ...buyers].some((r) => r.example);
     $("#seed-btn").hidden = !(hasExamples || sellers.length + buyers.length === 0);
@@ -206,6 +208,7 @@ function render() {
   $("#buyers-list").innerHTML = list(b, bNear, ({ r, d }) =>
     `<li><span class="name">${esc(r.name)}</span><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${r.orders || 0} orders · Pin ${esc(r.pin || "not set")}${r.phone ? " · " + esc(r.phone) : ""}</span><span class="dist">${dist(d)}</span><span class="row-actions">${resetBtn(!r.example && r.email, r.name)}</span></li>`);
   renderKycList();
+  renderPartners();
 }
 
 // " · via partner VIS-1234-051026, ₹20 off fee" for sellers a partner enrolled.
@@ -232,6 +235,20 @@ document.addEventListener("click", async (e) => {
     b.disabled = false;
     alert(`Couldn't send the reset link to ${email}: ${authError(err)}`);
   }
+});
+
+// ---------- Partners KYC
+const partnerSellers = (uid) => sellers.filter((r) => r.partnerUid === uid);
+function renderPartners() {
+  $("#partner-pending-count").textContent = partners.filter((p) => p.status === "Pending KYC").length;
+  $("#partners-count").textContent = partners.length;
+  $("#partner-stats").innerHTML = partnerStats(partners, sellers.filter((r) => r.partnerUid).length);
+  $("#partners-list").innerHTML = partnerRows(partners, partnerSellers, "No partners yet. Enroll one on the Partners page.");
+}
+const partnerReview = wirePartnerReview({ db, auth, partners: () => partners, sellersOf: partnerSellers, onSaved: () => load() });
+$("#partners-list").addEventListener("click", (e) => {
+  const id = e.target.closest("[data-partner]")?.dataset.partner;
+  if (id) partnerReview.open(id);
 });
 
 // ---------- Tabs
