@@ -24,6 +24,8 @@ It is a static website (HTML, CSS, JavaScript) that uses Firebase for login (Aut
 - `public/places.js`: Indian states, and the state and city for a pin code (city from the free India Post lookup at api.postalpincode.in)
 - `public/terms.js`, `public/terms/`: the Terms & Conditions screen and texts
 - `public/ratings.js`: star rating helpers
+- `public/partners.html`, `public/partners.js`: the Partners page, where the super admin enrolls GiZee partners and approves their KYC, and approved partners enroll sellers
+- `public/partner-fields.js`: the Partner ID and the partner and discount checks
 - `public/firebase-config.js`: your Firebase project's web config and the super admin email
 - `public/pincodes.js`: pin code locations and the example data
 - `firestore.rules`: who may read and write the database
@@ -48,6 +50,12 @@ Products of verified sellers are marked `live`, and the shop shows only live pro
 Shopper profiles are saved in `buyers/{uid}`, so they appear in the admin Buyers list. `usernames/{userId}` maps each user ID to its email for sign-in.
 
 Ratings live in `reviews/{sellerId}_{shopperUid}`, one per shopper per seller. Shoppers can rate only verified sellers and can edit or delete their own rating; the admin can remove any rating from the seller's Review KYC window.
+
+## Partners
+
+The super admin opens **Partners** (on the login page, or in the console header) to enroll a GiZee partner with name, mobile, PAN, Aadhaar, email and an optional address. The page builds the Partner ID from the first three letters of the name, the last four Aadhaar digits and the enrollment date (DDMMYY), like `VIS-1234-051026`; if that ID is taken it adds `-2`, `-3` and so on. Only the last four Aadhaar digits are saved.
+
+Enrolling creates the partner's sign-in and emails them a link to set their password. Their record is at `partners/{uid}`, readable only by the super admin and the partner. Once the super admin approves their KYC, the partner can enroll sellers from the same page, with a discount in rupees off the ₹100 monthly fee. Those sellers land in `sellers` as Pending KYC with `partnerId` and `feeDiscount`, and the partner can see the sellers they enrolled.
 
 ## Run it locally
 

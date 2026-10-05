@@ -16,6 +16,15 @@ service cloud.firestore {
     function changed() {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
+    // GiaZoNest partners (GiZee), enrolled by the super admin at partners/{uid}.
+    function partner() {
+      return get(/databases/$(database)/documents/partners/$(request.auth.uid)).data;
+    }
+    function isVerifiedPartner() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/partners/$(request.auth.uid))
+        && partner().status == 'Verified';
+    }
 
     // Full seller records, including KYC numbers. Sellers who sign up keep
     // theirs at sellers/{their uid}: they can read and edit it, but they
@@ -32,6 +41,22 @@ service cloud.firestore {
         && (request.resource.data.status == resource.data.status
             || (resource.data.status == 'KYC Rejected' && request.resource.data.status == 'Pending KYC'))
         && !(resource.data.status in ['Verified', 'Suspended'] && changed().hasAny(['kyc']));
+      // A partner whose KYC is approved can enroll sellers and see the ones they enrolled.
+      allow read: if signedIn() && resource.data.partnerUid == request.auth.uid;
+      allow create: if isVerifiedPartner()
+        && request.resource.data.partnerUid == request.auth.uid
+        && request.resource.data.partnerId == partner().partnerId
+        && request.resource.data.status == 'Pending KYC'
+        && request.resource.data.name is string && request.resource.data.name.size() > 0
+        && request.resource.data.feeDiscount is int
+        && request.resource.data.feeDiscount >= 0 && request.resource.data.feeDiscount <= 100
+        && !request.resource.data.keys().hasAny(['ownerUid', 'kyc', 'kycReviewedAt', 'kycReviewedBy', 'kycNote', 'example']);
+    }
+    // Partner records: Partner ID, name, mobile, PAN and Aadhaar last 4 only.
+    // The super admin enrolls and approves; a partner can only read their own.
+    match /partners/{id} {
+      allow read, write: if isSuperAdmin();
+      allow get: if isOwner(id);
     }
     // KYC-verified sellers without KYC numbers. Signed-in shoppers can read;
     // the admin console keeps this in sync.

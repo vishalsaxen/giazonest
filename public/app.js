@@ -199,13 +199,16 @@ function render() {
   const dist = (d) => anywhere ? "" : fmt(d);
   const rated = (id) => { const x = ratingOf(reviews, id); return x.n ? ` · ${ratingText(x)}` : ""; };
   $("#sellers-list").innerHTML = list(s, sNear, ({ r, d }) =>
-    `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${picked.has(r.id) ? " checked" : ""}><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · ${placeOf(r)}${countProducts(r.id) ? ` · ${countProducts(r.id)} products` : ""}${rated(r.id)}${r.ownerUid ? " · signed up" : ""}</span><span class="dist">${dist(d)}</span><button type="button" class="btn ghost small kyc-btn" data-seller="${esc(r.id)}">Review KYC</button></li>`);
+    `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${picked.has(r.id) ? " checked" : ""}><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · ${placeOf(r)}${countProducts(r.id) ? ` · ${countProducts(r.id)} products` : ""}${rated(r.id)}${r.ownerUid ? " · signed up" : ""}${viaPartner(r)}</span><span class="dist">${dist(d)}</span><button type="button" class="btn ghost small kyc-btn" data-seller="${esc(r.id)}">Review KYC</button></li>`);
   shownSellers = sNear.map((x) => x.r.id);
   syncPicks();
   $("#buyers-list").innerHTML = list(b, bNear, ({ r, d }) =>
     `<li><span class="name">${esc(r.name)}</span><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${r.orders || 0} orders · Pin ${esc(r.pin || "not set")}${r.phone ? " · " + esc(r.phone) : ""}</span><span class="dist">${dist(d)}</span></li>`);
   renderKycList();
 }
+
+// " · via partner VIS-1234-051026, ₹20 off fee" for sellers a partner enrolled.
+const viaPartner = (r) => r.partnerId ? ` · via partner ${esc(r.partnerId)}${r.feeDiscount ? `, ₹${r.feeDiscount} off fee` : ""}` : "";
 
 // "New Delhi, Delhi · Pin 110001", with the state guessed from the pin when it isn't saved.
 const stateOf = (r) => r.state || stateFromPin(r.pin) || "";
@@ -464,7 +467,8 @@ function openKyc(id) {
   if (!kycSeller) return;
   const k = kycSeller.kyc || {};
   $("#kyc-title").textContent = kycSeller.name;
-  $("#kyc-sub").textContent = `${kycSeller.category || ""}${kycSeller.subCategory ? " › " + kycSeller.subCategory : ""}${kycSeller.type ? " › " + kycSeller.type : ""} · Pin ${kycSeller.pin}`;
+  $("#kyc-sub").textContent = `${kycSeller.category || ""}${kycSeller.subCategory ? " › " + kycSeller.subCategory : ""}${kycSeller.type ? " › " + kycSeller.type : ""} · Pin ${kycSeller.pin}`
+    + (kycSeller.partnerId ? ` · Enrolled by partner ${kycSeller.partnerId} with ₹${kycSeller.feeDiscount || 0} off the monthly fee` : "");
   $("#kyc-status").textContent = kycSeller.status;
   $("#kyc-status").className = "chip " + (chip[kycSeller.status] || "warn");
   fillKyc("kyc-", k); $("#kyc-note").value = kycSeller.kycNote || "";
@@ -484,7 +488,7 @@ function openKyc(id) {
         ${p.description ? `<span class="meta">${esc(p.description)}</span>` : ""}
         ${Object.keys(p.details || {}).length ? `<span class="meta">${Object.entries(p.details).map(([k, v]) => `${esc(fieldLabel(p, k))}: ${esc(v)}`).join(" · ")}</span>` : ""}
       </div>
-    </li>`).join("") : `<li class="empty">${kycSeller.ownerUid ? "No products added yet." : "This seller was added by you, so they can't sign in to add products."}</li>`;
+    </li>`).join("") : `<li class="empty">${kycSeller.ownerUid ? "No products added yet." : `This seller was added by ${kycSeller.partnerId ? "a partner" : "you"}, so they can't sign in to add products.`}</li>`;
   kd.hidden = false; $("#kyc-pan").focus();
 }
 $("#kyc-cancel").onclick = closeKyc;
