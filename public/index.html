@@ -100,6 +100,7 @@
     <nav class="tabs" role="tablist" aria-label="Admin sections">
       <button type="button" class="tab" role="tab" id="tab-btn-overview" data-tab="overview" aria-controls="tab-overview" aria-selected="true">Overview</button>
       <button type="button" class="tab" role="tab" id="tab-btn-kyc" data-tab="kyc" aria-controls="tab-kyc" aria-selected="false">KYC list <span class="count" id="kyc-pending-count">0</span></button>
+      <button type="button" class="tab" role="tab" id="tab-btn-partners" data-tab="partners" aria-controls="tab-partners" aria-selected="false">Partners KYC <span class="count" id="partner-pending-count">0</span></button>
     </nav>
 
     <div id="tab-overview" role="tabpanel" aria-labelledby="tab-btn-overview" class="stack">
@@ -143,6 +144,16 @@
       </section>
     </div>
     </div>
+
+    <!-- Partners KYC: approve or reject GiZee partners -->
+    <section id="tab-partners" class="panel" role="tabpanel" aria-labelledby="tab-btn-partners" hidden>
+      <div class="panel-head">
+        <h2>Partners <span class="count" id="partners-count">0</span></h2>
+        <a class="btn small ghost" href="partners.html">Enroll a partner</a>
+      </div>
+      <div class="stats" id="partner-stats"></div>
+      <ul class="list" id="partners-list"></ul>
+    </section>
 
     <!-- KYC list: every seller with state, city and pin code -->
     <section id="tab-kyc" class="panel" role="tabpanel" aria-labelledby="tab-btn-kyc" hidden>
@@ -194,6 +205,34 @@
     </details>
   </div>
 </main>
+
+<!-- Partner KYC dialog -->
+<div class="overlay" id="pk-dialog" hidden>
+  <div class="dialog kyc" role="dialog" aria-modal="true" aria-labelledby="pk-title">
+    <div class="row">
+      <h2 id="pk-title" style="font-size:1.25rem"></h2>
+      <span class="chip" id="pk-status"></span>
+    </div>
+    <p class="sub" id="pk-sub"></p>
+    <dl class="facts" id="pk-facts"></dl>
+    <label for="pk-note">Note to partner <span class="hint">required when rejecting</span>
+      <input id="pk-note" type="text" maxlength="300" placeholder="e.g. PAN name doesn't match">
+    </label>
+    <div class="stack" style="gap:8px">
+      <h3 class="mini-h">Sellers enrolled <span class="count" id="pk-seller-count">0</span></h3>
+      <ul class="list" id="pk-sellers"></ul>
+    </div>
+    <p class="hint" id="pk-review"></p>
+    <div id="pk-msg" class="msg" hidden></div>
+    <div class="row">
+      <button type="button" class="btn ghost" id="pk-close">Close</button>
+      <div class="row" style="gap:8px">
+        <button type="button" class="btn ghost danger" id="pk-reject">Reject</button>
+        <button type="button" class="btn" id="pk-approve">Approve KYC</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Change password dialog -->
 <div class="overlay" id="change-dialog" hidden>

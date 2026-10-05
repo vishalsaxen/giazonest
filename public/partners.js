@@ -12,6 +12,7 @@ import { PINS } from "./pincodes.js?v=dev";
 import { CATEGORIES, subsOf, typesOf } from "./categories.js?v=dev";
 import { checkContact } from "./contacts.js?v=dev";
 import { fillStates, autofillFromPin } from "./places.js?v=dev";
+import { partnerRows, partnerStats, wirePartnerReview } from "./partner-review.js?v=dev";
 import { PARTNER_TYPES, MONTHLY_FEE, makePartnerId, uniquePartnerId, checkPartner, checkDiscount } from "./partner-fields.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
@@ -114,16 +115,9 @@ async function loadAdmin() {
 const sellersOf = (uid) => sellers.filter((r) => r.partnerUid === uid);
 
 function renderAdmin() {
-  const order = { "Pending KYC": 0, "KYC Rejected": 1, "Verified": 2 };
-  const list = [...partners].sort((a, b) => (order[a.status] ?? 3) - (order[b.status] ?? 3) || String(a.name).localeCompare(String(b.name)));
   $("#partners-count").textContent = partners.length;
-  $("#partner-stats").innerHTML = stat(partners.filter((p) => p.status === "Verified").length, "approved")
-    + stat(partners.filter((p) => p.status === "Pending KYC").length, "pending KYC") + stat(sellers.length, "sellers enrolled");
-  $("#partners-list").innerHTML = list.length ? list.map((p) => `<li>
-      <button type="button" class="name link-name" data-partner="${esc(p.id)}">${esc(p.name)}</button>${chipHtml(p.status)}
-      <span class="meta"><span class="pid">${esc(p.partnerId)}</span> · ${esc(p.type)} · ${esc(p.mobile)} · ${sellersOf(p.id).length} sellers</span>
-      <button type="button" class="btn ghost small" data-partner="${esc(p.id)}">Review KYC</button>
-    </li>`).join("") : `<li class="empty" style="display:block">No partners yet. Enroll the first one.</li>`;
+  $("#partner-stats").innerHTML = partnerStats(partners, sellers.length);
+  $("#partners-list").innerHTML = partnerRows(partners, sellersOf);
 }
 
 $("#partner-form").onsubmit = async (e) => {
@@ -157,52 +151,11 @@ $("#partner-form").onsubmit = async (e) => {
 };
 
 // ---------- Partner KYC
-const pk = $("#pk-dialog");
-let kycPartner = null;
-const closePk = () => { pk.hidden = true; $("#pk-msg").hidden = true; $("#pk-note").value = ""; kycPartner = null; };
+const review = wirePartnerReview({ db, auth, partners: () => partners, sellersOf, onSaved: loadAdmin });
 $("#partners-list").addEventListener("click", (e) => {
   const id = e.target.closest("[data-partner]")?.dataset.partner;
-  if (id) openPk(id);
+  if (id) review.open(id);
 });
-function openPk(id) {
-  kycPartner = partners.find((p) => p.id === id);
-  if (!kycPartner) return;
-  const p = kycPartner;
-  $("#pk-title").textContent = p.name;
-  $("#pk-status").textContent = p.status;
-  $("#pk-status").className = "chip " + (chip[p.status] || "warn");
-  $("#pk-sub").textContent = `${p.type} partner`;
-  const facts = [["Partner ID", p.partnerId], ["Mobile", p.mobile], ["PAN", p.pan], ["Aadhaar", `XXXX XXXX ${p.aadhaarLast4}`],
-    ["Email", p.email], ["Address", p.address || "Not given"], ["Enrolled", p.enrolledAt?.toDate?.().toLocaleString("en-IN") || ""]];
-  $("#pk-facts").innerHTML = facts.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");
-  $("#pk-note").value = p.kycNote || "";
-  const mine = sellersOf(p.id);
-  $("#pk-seller-count").textContent = mine.length;
-  $("#pk-sellers").innerHTML = mine.length ? mine.map((r) => `<li><span class="name">${esc(r.name)}</span>${chipHtml(r.status)}
-      <span class="meta">Pin ${esc(r.pin)} · ₹${r.feeDiscount || 0} off the monthly fee</span></li>`).join("")
-    : `<li class="empty" style="display:block">None yet.</li>`;
-  const when = p.kycReviewedAt?.toDate?.();
-  $("#pk-review").textContent = when ? `Last reviewed ${when.toLocaleString("en-IN")} by ${p.kycReviewedBy}.` : "Not reviewed yet.";
-  $("#pk-approve").hidden = p.status === "Verified";
-  $("#pk-reject").textContent = p.status === "Verified" ? "Revoke approval" : "Reject";
-  pk.hidden = false; $("#pk-close").focus();
-}
-$("#pk-close").onclick = closePk;
-pk.addEventListener("keydown", (e) => { if (e.key === "Escape") closePk(); });
-async function reviewPartner(approve) {
-  const m = $("#pk-msg"), note = $("#pk-note").value.trim();
-  if (!approve && !note) return show(m, "Write a reason in the note so the partner knows what to fix.", "bad");
-  try {
-    await updateDoc(doc(db, "partners", kycPartner.id), {
-      status: approve ? "Verified" : "KYC Rejected", kycNote: note,
-      kycReviewedAt: serverTimestamp(), kycReviewedBy: auth.currentUser.email
-    });
-    closePk();
-    await loadAdmin();
-  } catch (err) { show(m, `Couldn't save: ${err.message}`, "bad"); }
-}
-$("#pk-approve").onclick = () => reviewPartner(true);
-$("#pk-reject").onclick = () => reviewPartner(false);
 
 // ================= PARTNER =================
 let me = null, mySellers = [];
