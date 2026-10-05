@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GiaZoNest Partners</title>
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css?v=dev">
+</head>
+<body>
+
+<!-- ============ SIGN IN ============ -->
+<main id="login-view" class="view" hidden>
+  <div class="auth">
+    <aside class="auth-side">
+      <div class="logo"><span class="mark">GZ</span>GiaZoNest</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <span class="role">● GiaZoNest Partners</span>
+        <h1>Where selling meets shopping.</h1>
+        <p>GiZee partners bring sellers onto GiaZoNest. The super admin enrolls partners and approves their KYC; approved partners enroll sellers.</p>
+      </div>
+      <p class="hint" style="color:inherit;opacity:.8"><a href="index.html" style="color:inherit">← Back to the admin console</a></p>
+    </aside>
+
+    <section class="auth-main">
+      <div id="step-signin" class="stack">
+        <div>
+          <h2>Partner sign in</h2>
+          <p class="sub">Partners and the super admin sign in here. New partner? <button type="button" class="link" id="go-first">Set your password</button></p>
+        </div>
+        <form id="signin-form" novalidate>
+          <label for="si-email">Email
+            <input id="si-email" type="email" autocomplete="username" required>
+          </label>
+          <label for="si-pass">Password
+            <input id="si-pass" type="password" autocomplete="current-password" required>
+          </label>
+          <div class="row">
+            <label for="si-show" style="flex-direction:row;align-items:center;font-weight:500"><input id="si-show" type="checkbox"> Show password</label>
+            <button type="button" class="link" id="go-forgot">Forgot password?</button>
+          </div>
+          <div id="si-msg" class="msg" hidden></div>
+          <button class="btn" type="submit">Sign in</button>
+        </form>
+      </div>
+
+      <div id="step-forgot" class="stack" hidden>
+        <div>
+          <h2>Set or reset your password</h2>
+          <p class="sub">Enter the email GiaZoNest enrolled you with. We'll email you a link to choose a password.</p>
+        </div>
+        <form id="forgot-form" novalidate>
+          <label for="fg-email">Email
+            <input id="fg-email" type="email" autocomplete="email" required>
+          </label>
+          <div id="fg-msg" class="msg" hidden></div>
+          <div class="row">
+            <button type="button" class="link back">← Back to sign in</button>
+            <button class="btn" type="submit">Send link</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+</main>
+
+<!-- ============ SUPER ADMIN: ENROLL AND APPROVE PARTNERS ============ -->
+<main id="admin-view" class="view" hidden>
+  <div class="wrap">
+    <header class="top">
+      <div class="logo"><span class="mark">GZ</span>GiaZoNest <span class="badge">Partners</span></div>
+      <div class="who">
+        <a class="btn ghost small" href="index.html">← Admin console</a>
+        <span class="hint" id="admin-email"></span>
+        <button class="btn ghost small sign-out" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <div class="split">
+      <section class="panel" aria-labelledby="enroll-h">
+        <div class="panel-head">
+          <h2 id="enroll-h">Enroll a partner</h2>
+        </div>
+        <form id="partner-form" class="stack" novalidate>
+          <div class="kyc-grid">
+            <label for="pa-type">Partner type *
+              <select id="pa-type" required></select>
+            </label>
+            <label for="pa-name">Name *
+              <input id="pa-name" type="text" maxlength="80" autocomplete="off" required>
+            </label>
+            <label for="pa-mobile">Mobile number *
+              <input id="pa-mobile" type="tel" inputmode="numeric" maxlength="10" autocomplete="off" placeholder="9876543210" required>
+            </label>
+            <label for="pa-pan">PAN card number *
+              <input id="pa-pan" type="text" maxlength="10" autocomplete="off" placeholder="ABCDE1234F" required>
+            </label>
+            <label for="pa-aadhaar">Aadhaar card number *
+              <input id="pa-aadhaar" type="text" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="12 digits" required>
+              <span class="hint">Only the last 4 digits are saved.</span>
+            </label>
+            <label for="pa-email">Email *
+              <input id="pa-email" type="email" autocomplete="off" placeholder="partner@example.com" required>
+              <span class="hint">The partner signs in with this.</span>
+            </label>
+            <label for="pa-address" style="grid-column:1/-1">Address <span class="hint">optional</span>
+              <textarea id="pa-address" rows="2" maxlength="300"></textarea>
+            </label>
+          </div>
+          <div class="pid-box">
+            <span class="hint">Partner ID</span>
+            <b id="pa-id">Fill in the name and Aadhaar</b>
+          </div>
+          <div id="pa-msg" class="msg" hidden></div>
+          <button class="btn" type="submit" id="pa-save">Enroll partner</button>
+        </form>
+      </section>
+
+      <section class="panel" aria-labelledby="partners-h">
+        <div class="panel-head">
+          <h2 id="partners-h">Partners <span class="count" id="partners-count">0</span></h2>
+        </div>
+        <div class="stats" id="partner-stats"></div>
+        <ul class="list" id="partners-list"></ul>
+      </section>
+    </div>
+    <p class="example" id="data-note"></p>
+  </div>
+</main>
+
+<!-- Partner KYC dialog -->
+<div class="overlay" id="pk-dialog" hidden>
+  <div class="dialog kyc" role="dialog" aria-modal="true" aria-labelledby="pk-title">
+    <div class="row">
+      <h2 id="pk-title" style="font-size:1.25rem"></h2>
+      <span class="chip" id="pk-status"></span>
+    </div>
+    <p class="sub" id="pk-sub"></p>
+    <dl class="facts" id="pk-facts"></dl>
+    <label for="pk-note">Note to partner <span class="hint">required when rejecting</span>
+      <input id="pk-note" type="text" maxlength="300" placeholder="e.g. PAN name doesn't match">
+    </label>
+    <div class="stack" style="gap:8px">
+      <h3 class="mini-h">Sellers enrolled <span class="count" id="pk-seller-count">0</span></h3>
+      <ul class="list" id="pk-sellers"></ul>
+    </div>
+    <p class="hint" id="pk-review"></p>
+    <div id="pk-msg" class="msg" hidden></div>
+    <div class="row">
+      <button type="button" class="btn ghost" id="pk-close">Close</button>
+      <div class="row" style="gap:8px">
+        <button type="button" class="btn ghost danger" id="pk-reject">Reject</button>
+        <button type="button" class="btn" id="pk-approve">Approve KYC</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PARTNER: ENROLL SELLERS ============ -->
+<main id="partner-view" class="view" hidden>
+  <div class="wrap">
+    <header class="top">
+      <div class="logo"><span class="mark">GZ</span>GiaZoNest <span class="badge" id="me-type">Partner</span></div>
+      <div class="who">
+        <span class="hint" id="me-name"></span>
+        <button class="btn ghost small sign-out" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <div class="msg status-banner" id="me-banner" hidden></div>
+
+    <div class="split">
+      <section class="panel" aria-labelledby="es-h">
+        <div class="panel-head">
+          <h2 id="es-h">Enroll a seller</h2>
+          <span class="chip" id="me-status"></span>
+        </div>
+        <form id="es-form" class="stack" novalidate>
+          <fieldset id="es-fields" class="plain">
+            <div class="kyc-grid">
+              <label for="es-name" style="grid-column:1/-1">Shop name *
+                <input id="es-name" type="text" maxlength="80" required>
+              </label>
+              <label for="es-cat">Category *
+                <select id="es-cat" required><option value="">Select category</option></select>
+              </label>
+              <label for="es-sub">Sub-category *
+                <select id="es-sub" required disabled><option value="">Select a category first</option></select>
+              </label>
+              <label for="es-type" id="es-type-label" hidden>Type *
+                <select id="es-type"><option value="">Select type</option></select>
+              </label>
+              <label for="es-pin">Pin code *
+                <input id="es-pin" type="text" inputmode="numeric" maxlength="6" required>
+              </label>
+              <label for="es-state">State *
+                <select id="es-state" required></select>
+              </label>
+              <label for="es-city">City *
+                <input id="es-city" type="text" maxlength="60" required>
+                <span class="hint" id="es-city-note"></span>
+              </label>
+              <label for="es-email">Seller email *
+                <input id="es-email" type="email" autocomplete="off" placeholder="shop@example.com" required>
+              </label>
+              <label for="es-whatsapp">WhatsApp number *
+                <input id="es-whatsapp" type="tel" inputmode="numeric" maxlength="10" placeholder="10-digit mobile number" required>
+              </label>
+              <label for="es-website">Website <span class="hint">optional</span>
+                <input id="es-website" type="url" placeholder="https://">
+              </label>
+              <label for="es-discount">Discount (₹) *
+                <input id="es-discount" type="text" inputmode="numeric" maxlength="3" value="0" required>
+                <span class="hint" id="es-discount-hint"></span>
+              </label>
+            </div>
+            <div id="es-msg" class="msg" hidden></div>
+            <button class="btn" type="submit">Enroll seller</button>
+          </fieldset>
+        </form>
+      </section>
+
+      <section class="panel" aria-labelledby="ms-h">
+        <div class="panel-head">
+          <h2 id="ms-h">Your sellers <span class="count" id="ms-count">0</span></h2>
+        </div>
+        <ul class="list" id="ms-list"></ul>
+      </section>
+    </div>
+  </div>
+</main>
+
+<!-- Setup notice, shown until firebase-config.js is filled in -->
+<div class="overlay" id="setup-dialog" hidden>
+  <div class="dialog">
+    <h2 style="font-size:1.25rem">Connect Firebase</h2>
+    <p class="sub">Paste your Firebase web config into <b>public/firebase-config.js</b> and reload. The README lists the steps.</p>
+  </div>
+</div>
+<script type="module" src="partners.js?v=dev"></script>
+</body>
+</html>
