@@ -192,6 +192,14 @@
       </div>
       <ul class="results" id="results"></ul>
     </section>
+
+    <section class="panel" id="requests-panel" aria-labelledby="requests-h">
+      <div class="panel-head">
+        <h2 id="requests-h">My orders and enquiries <span class="count" id="request-count">0</span></h2>
+        <span class="hint">Tell the seller your OTP so they know the request is really yours</span>
+      </div>
+      <ul class="results" id="request-list"></ul>
+    </section>
   </div>
 </main>
 
@@ -221,6 +229,37 @@
     </form>
     <h3 class="mini-h">What shoppers say</h3>
     <ul class="reviews" id="rate-list"></ul>
+  </div>
+</div>
+
+<!-- Order or enquiry, with its OTP -->
+<div class="overlay" id="request-dialog" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="rq-title">
+    <h2 id="rq-title" style="font-size:1.25rem"></h2>
+    <p class="sub" id="rq-sub"></p>
+    <form id="rq-form" class="stack" novalidate>
+      <label for="rq-qty" id="rq-qty-label">Quantity
+        <input id="rq-qty" type="number" min="1" step="1" value="1" inputmode="numeric">
+      </label>
+      <label for="rq-text">Message <span class="hint">optional</span>
+        <textarea id="rq-text" rows="3" maxlength="500" placeholder="Anything the seller should know"></textarea>
+      </label>
+      <p class="hint">GiaZoNest gives you and the seller the same OTP. Tell the seller your OTP when you talk to them; they confirm your request only if it matches.</p>
+      <div id="rq-msg" class="msg" hidden></div>
+      <div class="row" style="justify-content:flex-end;gap:8px">
+        <button type="button" class="btn ghost" id="rq-cancel">Cancel</button>
+        <button type="submit" class="btn" id="rq-send">Send</button>
+      </div>
+    </form>
+    <div id="rq-done" class="stack" hidden>
+      <p class="sub">Your OTP</p>
+      <p class="otp" id="rq-otp"></p>
+      <p id="rq-done-text"></p>
+      <div class="row" style="justify-content:flex-end;gap:8px">
+        <button type="button" class="btn ghost" id="rq-close">Done</button>
+        <a class="btn" id="rq-wa" target="_blank" rel="noopener" hidden>Send OTP on WhatsApp</a>
+      </div>
+    </div>
   </div>
 </div>
 
