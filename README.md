@@ -2,7 +2,7 @@
 
 Where selling meets shopping. There are two pages:
 
-- **Admin console** (`index.html`): the super admin signs in, changes or resets the password, adds sellers, reviews KYC, and sees sellers and buyers by pin code or current location. The **Partners KYC** tab approves or rejects partners. The **KYC list** tab shows every seller's state, city and pin code with approved and pending KYC counts, by state.
+- **Admin console** (`index.html`): the super admin signs in, changes or resets the password, adds sellers, reviews KYC, selects and deletes sellers or buyers, and sees sellers and buyers by pin code or current location. The **Partners KYC** tab approves or rejects partners. The **KYC list** tab shows every seller's state, city and pin code with approved and pending KYC counts, by state.
 - **Seller page** (`seller.html`): sellers create an account, fill in their shop details and KYC (ticking "Not available" for a PAN, GSTIN or bank account they don't have), and add products with up to 10 photos, a short description, price, discount, stock and category-specific details. "Sold 1" lowers the stock by one and counts the sale.
 - **Shop** (`shop.html`): shoppers create an account (name, user ID, mobile, email, pin code, password), sign in with email or user ID, search sellers by state, then city, then pin code (or use their live location), and find KYC-verified sellers with WhatsApp, email and website contact buttons. Shoppers can give each seller a star rating with optional feedback.
 

@@ -202,11 +202,11 @@ function render() {
   const dist = (d) => anywhere ? "" : fmt(d);
   const rated = (id) => { const x = ratingOf(reviews, id); return x.n ? ` · ${ratingText(x)}` : ""; };
   $("#sellers-list").innerHTML = list(s, sNear, ({ r, d }) =>
-    `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${picked.has(r.id) ? " checked" : ""}><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · ${placeOf(r)}${countProducts(r.id) ? ` · ${countProducts(r.id)} products` : ""}${rated(r.id)}${r.ownerUid ? " · signed up" : ""}${viaPartner(r)}</span><span class="dist">${dist(d)}</span><span class="row-actions">${resetBtn(r.ownerUid && (r.loginEmail || r.email), r.name)}<button type="button" class="btn ghost small kyc-btn" data-seller="${esc(r.id)}">Review KYC</button></span></li>`);
-  shownSellers = sNear.map((x) => x.r.id);
-  syncPicks();
+    `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${sellerPicks.picked.has(r.id) ? " checked" : ""}><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · ${placeOf(r)}${countProducts(r.id) ? ` · ${countProducts(r.id)} products` : ""}${rated(r.id)}${r.ownerUid ? " · signed up" : ""}${viaPartner(r)}</span><span class="dist">${dist(d)}</span><span class="row-actions">${resetBtn(r.ownerUid && (r.loginEmail || r.email), r.name)}<button type="button" class="btn ghost small kyc-btn" data-seller="${esc(r.id)}">Review KYC</button></span></li>`);
+  sellerPicks.sync(sNear.map((x) => x.r.id));
   $("#buyers-list").innerHTML = list(b, bNear, ({ r, d }) =>
-    `<li><span class="name">${esc(r.name)}</span><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${r.orders || 0} orders · Pin ${esc(r.pin || "not set")}${r.phone ? " · " + esc(r.phone) : ""}</span><span class="dist">${dist(d)}</span><span class="row-actions">${resetBtn(!r.example && r.email, r.name)}</span></li>`);
+    `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${buyerPicks.picked.has(r.id) ? " checked" : ""}><span class="name">${esc(r.name)}</span><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${r.orders || 0} orders · Pin ${esc(r.pin || "not set")}${r.phone ? " · " + esc(r.phone) : ""}</span><span class="dist">${dist(d)}</span><span class="row-actions">${resetBtn(!r.example && r.email, r.name)}</span></li>`);
+  buyerPicks.sync(bNear.map((x) => x.r.id));
   renderKycList();
   renderPartners();
 }
@@ -334,58 +334,84 @@ async function fillPlaces() {
 }
 
 // ---------- Select and delete sellers
-const picked = new Set();
-let shownSellers = [];
-const dd = $("#delete-dialog");
-function syncPicks() {
-  for (const id of [...picked]) if (!sellers.some((r) => r.id === id)) picked.delete(id);
-  const n = picked.size, all = $("#pick-all");
-  $("#delete-picked").disabled = !n;
-  $("#delete-picked").textContent = n ? `Delete selected (${n})` : "Delete selected";
-  const shownPicked = shownSellers.filter((id) => picked.has(id)).length;
-  all.checked = shownSellers.length > 0 && shownPicked === shownSellers.length;
-  all.indeterminate = shownPicked > 0 && shownPicked < shownSellers.length;
-  all.disabled = !shownSellers.length;
+// Checkboxes, "Select all shown" and "Delete selected" for a list. rows() is every record of that list.
+function picker(kind, rows) {
+  const picked = new Set(), list = $(`#${kind}-list`), all = $(`#pick-all${kind === "buyers" ? "-buyers" : ""}`),
+    btn = $(`#delete-picked${kind === "buyers" ? "-buyers" : ""}`);
+  let shown = [];
+  function sync(ids = shown) {
+    shown = ids;
+    for (const id of [...picked]) if (!rows().some((r) => r.id === id)) picked.delete(id);
+    const n = picked.size, shownPicked = shown.filter((id) => picked.has(id)).length;
+    btn.disabled = !n;
+    btn.textContent = n ? `Delete selected (${n})` : "Delete selected";
+    all.checked = shown.length > 0 && shownPicked === shown.length;
+    all.indeterminate = shownPicked > 0 && shownPicked < shown.length;
+    all.disabled = !shown.length;
+  }
+  list.addEventListener("change", (e) => {
+    const id = e.target.dataset?.pick;
+    if (!id) return;
+    e.target.checked ? picked.add(id) : picked.delete(id);
+    sync();
+  });
+  all.onchange = (e) => {
+    shown.forEach((id) => (e.target.checked ? picked.add(id) : picked.delete(id)));
+    list.querySelectorAll("[data-pick]").forEach((b) => (b.checked = e.target.checked));
+    sync();
+  };
+  btn.onclick = () => openDelete(kind);
+  return { picked, sync };
 }
-$("#sellers-list").addEventListener("change", (e) => {
-  const id = e.target.dataset?.pick;
-  if (!id) return;
-  e.target.checked ? picked.add(id) : picked.delete(id);
-  syncPicks();
-});
-$("#pick-all").onchange = (e) => {
-  shownSellers.forEach((id) => (e.target.checked ? picked.add(id) : picked.delete(id)));
-  document.querySelectorAll("#sellers-list [data-pick]").forEach((b) => (b.checked = e.target.checked));
-  syncPicks();
+const sellerPicks = picker("sellers", () => sellers), buyerPicks = picker("buyers", () => buyers);
+
+const dd = $("#delete-dialog");
+let delKind = "sellers";
+const DELETE_NOTE = {
+  sellers: "This removes them, their products and their photos from the database and the shop for good. It can't be undone.",
+  buyers: "This removes their profile, user ID and ratings from the database for good. It can't be undone. Their sign-in stays in Firebase Authentication; delete it there too if you want to block them."
 };
 const closeDelete = () => { dd.hidden = true; $("#del-msg").hidden = true; $("#del-yes").disabled = false; };
-$("#delete-picked").onclick = () => {
-  const rows = sellers.filter((r) => picked.has(r.id));
+function openDelete(kind) {
+  delKind = kind;
+  const isBuyers = kind === "buyers", picks = isBuyers ? buyerPicks : sellerPicks;
+  const rows = (isBuyers ? buyers : sellers).filter((r) => picks.picked.has(r.id));
   if (!rows.length) return;
-  $("#del-title").textContent = `Are you sure you want to delete ${rows.length} seller${rows.length === 1 ? "" : "s"}?`;
-  $("#del-names").innerHTML = rows.map((r) => `<li>${esc(r.name)} <span class="hint">Pin ${esc(r.pin)}</span></li>`).join("");
+  const word = isBuyers ? "buyer" : "seller";
+  $("#del-title").textContent = `Are you sure you want to delete ${rows.length} ${word}${rows.length === 1 ? "" : "s"}?`;
+  $("#del-sub").textContent = DELETE_NOTE[kind];
+  $("#del-names").innerHTML = rows.map((r) => `<li>${esc(r.name)} <span class="hint">${isBuyers && r.email ? esc(r.email) + " · " : ""}Pin ${esc(r.pin || "not set")}</span></li>`).join("");
   dd.hidden = false; $("#del-no").focus();
-};
+}
 $("#del-no").onclick = closeDelete;
 dd.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDelete(); });
 $("#del-yes").onclick = async () => {
-  const ids = [...picked], m = $("#del-msg");
+  const isBuyers = delKind === "buyers", picks = isBuyers ? buyerPicks : sellerPicks;
+  const ids = [...picks.picked], m = $("#del-msg"), word = isBuyers ? "buyer" : "seller";
   $("#del-yes").disabled = true;
   show(m, `Deleting ${ids.length}…`, "");
   try {
-    // Each seller's record, shop listing, products and product photos all go.
     const ops = [];
     for (const id of ids) {
+      if (isBuyers) {
+        // The buyer's profile, their user ID (so it can be used again) and their ratings.
+        const r = buyers.find((x) => x.id === id);
+        ops.push((b) => b.delete(doc(db, "buyers", id)));
+        if (r?.userId) ops.push((b) => b.delete(doc(db, "usernames", r.userId)));
+        reviews.filter((v) => v.uid === id).forEach((v) => ops.push((b) => b.delete(doc(db, "reviews", v.id))));
+        continue;
+      }
+      // Each seller's record, shop listing, products and product photos all go.
       ops.push((b) => b.delete(doc(db, "sellers", id)), (b) => b.delete(doc(db, "publicSellers", id)));
       products.filter((p) => p.sellerId === id).forEach((p) => ops.push((b) => b.delete(doc(db, "products", p.id))));
       const imgs = await getDocs(query(collection(db, "productImages"), where("sellerId", "==", id)));
       imgs.docs.forEach((d) => ops.push((b) => b.delete(d.ref)));
     }
     await commitAll(ops);
-    picked.clear();
+    picks.picked.clear();
     closeDelete();
     await load();
-    $("#data-note").textContent = `Deleted ${ids.length} seller${ids.length === 1 ? "" : "s"}. ` + $("#data-note").textContent;
+    $("#data-note").textContent = `Deleted ${ids.length} ${word}${ids.length === 1 ? "" : "s"}. ` + $("#data-note").textContent;
   } catch (err) { $("#del-yes").disabled = false; show(m, `Couldn't delete: ${err.message}`, "bad"); }
 };
 

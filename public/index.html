@@ -140,6 +140,10 @@
           <button class="btn small ghost" type="button" id="seed-btn" hidden>Load example data</button>
         </div>
         <div class="stats" id="buyer-stats"></div>
+        <div class="pick-bar">
+          <label for="pick-all-buyers" class="pick-all"><input type="checkbox" id="pick-all-buyers"> Select all shown</label>
+          <button class="btn small ghost danger" type="button" id="delete-picked-buyers" disabled>Delete selected</button>
+        </div>
         <ul class="list" id="buyers-list"></ul>
       </section>
     </div>
@@ -308,7 +312,7 @@
 <div class="overlay" id="delete-dialog" hidden>
   <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="del-title" aria-describedby="del-sub">
     <h2 id="del-title" style="font-size:1.25rem"></h2>
-    <p class="sub" id="del-sub">This removes them, their products and their photos from the database and the shop for good. It can't be undone.</p>
+    <p class="sub" id="del-sub"></p>
     <ul class="del-names" id="del-names"></ul>
     <div id="del-msg" class="msg" hidden></div>
     <div class="row">
