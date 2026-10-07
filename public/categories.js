@@ -17,7 +17,7 @@ export const CATEGORIES = {
   "Stationery & Office": ["Stationery", "Office Supplies", "Printing Supplies"],
   "Jewellery & Accessories": ["Fashion Jewellery", "Artificial Jewellery", "Watches", "Accessories"],
   "Gifts & Lifestyle": ["Gifts", "Personalized Gifts", "Festival Items", "Lifestyle Products"],
-  "Food": ["Bikaner Products", "Chitle", "Vegetarian", "Non-Vegetarian", "Chaupati"],
+  "Food": ["Bikaner Products", "Chitle", "Vegetarian", "Non-Vegetarian", "Chaupati", "Cloud Kitchen"],
   "School & Education": {
     "School Boards": ["CBSE", "ICSE", "ISC", "State Board – Maharashtra", "State Board – Uttar Pradesh", "State Board – Delhi", "State Board – Karnataka", "State Board – Tamil Nadu", "State Board – Other States", "IB – International Baccalaureate", "Cambridge / IGCSE"],
     "Academic Subjects": ["Mathematics", "Science", "Physics", "Chemistry", "Biology", "English", "Hindi", "Marathi", "Social Studies", "History", "Geography", "Computer Science", "Coding & Programming"],

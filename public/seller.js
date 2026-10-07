@@ -153,7 +153,36 @@ function showStatus() {
     : "GiaZoNest checks these before your shop goes live. If you don't have one, tick \"Not available\".";
   $("#products-panel").hidden = !shop;
   $("#ratings-panel").hidden = !shop;
+  $("#sales-panel").hidden = !shop;
+  showServices();
 }
+
+// ---------- Stop or resume services
+// servicesPaused on sellers/{uid} shows on the admin console and the partner's page.
+function showServices() {
+  $("#services-panel").hidden = !shop;
+  if (!shop) return;
+  const paused = !!shop.servicesPaused;
+  $("#services-chip").textContent = paused ? "Paused" : "Open";
+  $("#services-chip").className = "chip " + (paused ? "bad" : "ok");
+  $("#services-note").textContent = paused
+    ? "Your services are paused. GiaZoNest and your partner can see you're not taking orders right now."
+    : "You're taking orders. Pause your services when you're away or can't serve buyers.";
+  $("#services-toggle").textContent = paused ? "Resume services" : "Stop services";
+  $("#services-toggle").className = "btn small" + (paused ? "" : " ghost danger");
+}
+$("#services-toggle").onclick = async () => {
+  const paused = !shop.servicesPaused, b = $("#services-toggle");
+  if (paused && !confirm("Stop your services? GiaZoNest and your partner will see that you're not taking orders.")) return;
+  b.disabled = true;
+  try {
+    await updateDoc(doc(db, "sellers", me.uid), { servicesPaused: paused, servicesChangedAt: serverTimestamp() });
+    shop.servicesPaused = paused;
+    $("#services-msg").hidden = true;
+    showServices();
+  } catch (err) { show($("#services-msg"), `Couldn't update: ${err.message}`, "bad"); }
+  finally { b.disabled = false; }
+};
 
 function fillShop() {
   const r = shop || {};
@@ -236,7 +265,7 @@ async function loadProducts() {
 function renderProducts() {
   $("#product-count").textContent = products.length;
   $("#products-note").textContent = products.length
-    ? "Tap \"Sold 1\" when you sell an item, so your stock stays right."
+    ? "Tap \"Record sale\" when you sell something, so your stock and sales stay right."
     : "No products yet. Add your first one with photos, price and stock.";
   $("#product-list").innerHTML = products.map((p) => {
     const sp = sellingPrice(p), word = itemWord(p.category, p.subCategory);
@@ -248,7 +277,7 @@ function renderProducts() {
         <span class="meta">${p.stock > 0 ? `${p.stock} ${word}${p.stock === 1 ? "" : "s"} left` : `<b class="out">Out of stock</b>`} · ${p.sold || 0} sold · ${p.photoCount || 0} photo${p.photoCount === 1 ? "" : "s"}</span>
       </div>
       <div class="product-actions">
-        <button type="button" class="btn small" data-sold="${esc(p.id)}"${p.stock > 0 ? "" : " disabled"}>Sold 1</button>
+        <button type="button" class="btn small" data-sold="${esc(p.id)}"${p.stock > 0 ? "" : " disabled"}>Record sale</button>
         <button type="button" class="btn ghost small" data-edit="${esc(p.id)}">Edit</button>
       </div>
     </li>`;
@@ -259,15 +288,94 @@ $("#product-list").addEventListener("click", async (e) => {
   const sold = e.target.closest("[data-sold]")?.dataset.sold;
   const edit = e.target.closest("[data-edit]")?.dataset.edit;
   if (edit) return openProduct(products.find((p) => p.id === edit));
-  if (!sold) return;
-  const p = products.find((x) => x.id === sold);
-  if (!p || p.stock < 1) return;
-  e.target.disabled = true;
+  if (sold) openSale(products.find((x) => x.id === sold));
+});
+
+// ---------- Sales: product, quantity and the total the buyer paid, at sales/{id}
+let sales = [];
+const OTHER = "__other";
+async function loadSales() {
+  const snap = await getDocs(query(collection(db, "sales"), where("sellerId", "==", me.uid)));
+  sales = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.soldAt?.seconds || 0) - (a.soldAt?.seconds || 0));
+  renderSales();
+}
+function renderSales() {
+  const total = sales.reduce((n, x) => n + (x.amount || 0), 0);
+  $("#sale-count").textContent = sales.length;
+  $("#sales-note").textContent = sales.length ? `${rupees(total)} received from ${sales.length} sale${sales.length === 1 ? "" : "s"}.` : "";
+  $("#sale-list").innerHTML = sales.length ? sales.map((x) => `<li class="row">
+      <span><b>${esc(x.productName)}</b>${x.qty > 1 ? ` × ${x.qty}` : ""} · ${rupees(x.amount)}
+        <span class="hint">${x.soldAt ? new Date(x.soldAt.seconds * 1000).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : ""}</span></span>
+      <button type="button" class="btn ghost small" data-unsale="${esc(x.id)}">Remove</button>
+    </li>`).join("")
+    : `<li class="empty">No sales recorded yet. Record each sale with the product and what the buyer paid.</li>`;
+}
+
+const sd = $("#sale-dialog"), sdProduct = $("#sd-product");
+const saleProduct = () => products.find((p) => p.id === sdProduct.value);
+function saleHint() {
+  const p = saleProduct(), qty = Number($("#sd-qty").value) || 0;
+  $("#sd-name-label").hidden = sdProduct.value !== OTHER;
+  $("#sd-hint").textContent = p ? `${p.stock} in stock. Saving takes ${qty || 0} off your stock.` : "";
+}
+function openSale(p = null) {
+  $("#sale-form").reset();
+  $("#sd-msg").hidden = true;
+  sdProduct.replaceChildren(opt("", "Choose a product"), ...products.map((x) => opt(x.id, `${x.name} (${x.stock} left)`)), opt(OTHER, "Something not in my list"));
+  sdProduct.value = p ? p.id : "";
+  $("#sd-qty").value = 1;
+  $("#sd-amount").value = p ? sellingPrice(p) : "";
+  saleHint();
+  sd.hidden = false;
+  (p ? $("#sd-amount") : sdProduct).focus();
+}
+// Suggests the selling price times the quantity; the seller can change it to what was actually paid.
+const suggestAmount = () => { const p = saleProduct(); if (p) $("#sd-amount").value = Math.round(sellingPrice(p) * (Number($("#sd-qty").value) || 1) * 100) / 100; saleHint(); };
+sdProduct.onchange = suggestAmount;
+$("#sd-qty").oninput = suggestAmount;
+const closeSale = () => (sd.hidden = true);
+$("#add-sale").onclick = () => openSale();
+$("#sd-cancel").onclick = closeSale;
+sd.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSale(); });
+
+$("#sale-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const m = $("#sd-msg"), p = saleProduct();
+  const qty = Number($("#sd-qty").value), amount = Number($("#sd-amount").value);
+  const productName = p ? p.name : $("#sd-name").value.trim();
+  if (!sdProduct.value) return show(m, "Choose the product you sold.", "bad");
+  if (!productName) return show(m, "Enter the product name.", "bad");
+  if (!Number.isInteger(qty) || qty < 1) return show(m, "Enter the quantity as a whole number, 1 or more.", "bad");
+  if (p && qty > p.stock) return show(m, `You have only ${p.stock} in stock. Update the product's stock first if that's wrong.`, "bad");
+  if ($("#sd-amount").value === "" || !(amount >= 0)) return show(m, "Enter the total the buyer paid, in rupees.", "bad");
+  $("#sd-save").disabled = true;
   try {
-    await updateDoc(doc(db, "products", p.id), { stock: increment(-1), sold: increment(1), live: await isLive(), updatedAt: serverTimestamp() });
-    p.stock -= 1; p.sold = (p.sold || 0) + 1;
-    renderProducts();
-  } catch (err) { e.target.disabled = false; alert(`Couldn't update stock: ${err.message}`); }
+    const batch = writeBatch(db);
+    batch.set(doc(collection(db, "sales")), { sellerId: me.uid, productId: p ? p.id : null, productName, qty,
+      amount: Math.round(amount * 100) / 100, soldAt: serverTimestamp() });
+    if (p) batch.update(doc(db, "products", p.id), { stock: increment(-qty), sold: increment(qty), live: await isLive(), updatedAt: serverTimestamp() });
+    await batch.commit();
+    if (p) { p.stock -= qty; p.sold = (p.sold || 0) + qty; renderProducts(); }
+    closeSale();
+    await loadSales();
+  } catch (err) { show(m, `Couldn't save: ${err.message}`, "bad"); }
+  finally { $("#sd-save").disabled = false; }
+};
+
+// Removing a sale puts its quantity back in stock, if the product still exists.
+$("#sale-list").addEventListener("click", async (e) => {
+  const id = e.target.closest("[data-unsale]")?.dataset.unsale;
+  const x = sales.find((s) => s.id === id);
+  if (!x || !confirm(`Remove the sale of ${x.productName} (${rupees(x.amount)})?`)) return;
+  try {
+    const batch = writeBatch(db);
+    batch.delete(doc(db, "sales", x.id));
+    const p = products.find((q) => q.id === x.productId);
+    if (p) batch.update(doc(db, "products", p.id), { stock: increment(x.qty), sold: increment(-Math.min(x.qty, p.sold || 0)), live: await isLive(), updatedAt: serverTimestamp() });
+    await batch.commit();
+    if (p) { p.stock += x.qty; p.sold = Math.max(0, (p.sold || 0) - x.qty); renderProducts(); }
+    await loadSales();
+  } catch (err) { alert(`Couldn't remove the sale: ${err.message}`); }
 });
 
 // Product dialog
@@ -434,6 +542,7 @@ async function enter(user) {
   showStatus();
   if (shop) {
     await loadProducts().catch((err) => ($("#products-note").textContent = `Couldn't load products: ${err.message}`));
+    loadSales().catch((err) => ($("#sales-note").textContent = `Couldn't load sales: ${err.message}`));
     loadReviews().catch(() => ($("#rating-list").innerHTML = `<li class="empty">Couldn't load ratings.</li>`));
   }
 }

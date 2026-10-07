@@ -11,7 +11,7 @@ import { PINS } from "./pincodes.js?v=dev";
 import { CATEGORIES, subsOf, typesOf } from "./categories.js?v=dev";
 import { checkContact } from "./contacts.js?v=dev";
 import { fillStates, autofillFromPin } from "./places.js?v=dev";
-import { partnerRows, partnerStats, wirePartnerReview } from "./partner-review.js?v=dev";
+import { partnerRows, partnerStats, wirePartnerReview, pausedChip } from "./partner-review.js?v=dev";
 import { PARTNER_TYPES, MONTHLY_FEE, makePartnerId, checkPartner, checkDiscount } from "./partner-fields.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
@@ -43,6 +43,8 @@ document.querySelectorAll(".rules").forEach((ul) => {
     [...ul.children].forEach((li, i) => li.classList.toggle("met", RULES[i][1](input.value))));
 });
 const chip = { "Verified": "ok", "Pending KYC": "warn", "KYC Rejected": "bad", "Suspended": "bad" };
+// Shown to a partner whose KYC is waiting for review. No email is sent: the site has no mail server.
+const KYC_WAIT = "KYC Approval may take 12-24 hours. Thanks - Team: gizee@giazonest.com";
 const chipHtml = (s) => `<span class="chip ${chip[s] || "warn"}">${esc(s)}</span>`;
 const authError = (e) => ({
   "auth/invalid-credential": "That email and password don't match. Check them or reset your password.",
@@ -234,7 +236,7 @@ async function loadPartner(user) {
   if (ok) banner.hidden = true;
   else show(banner, me.status === "KYC Rejected"
     ? `Your KYC was not approved${me.kycNote ? `: ${me.kycNote.replace(/[.!?]?$/, ".")}` : "."} Fix your details and save them to send them for review again. Questions: gizee@giazonest.com.`
-    : "Your details are with GiaZoNest for KYC review. You can enroll sellers once it's approved.", me.status === "KYC Rejected" ? "bad" : "");
+    : `${KYC_WAIT} You can enroll sellers once it's approved.`, me.status === "KYC Rejected" ? "bad" : "");
   $("#me-edit-row").hidden = ok;
   await loadMySellers();
 }
@@ -244,10 +246,21 @@ async function loadMySellers() {
     mySellers = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
   } catch { mySellers = []; }
   $("#ms-count").textContent = mySellers.length;
-  $("#ms-list").innerHTML = mySellers.length ? mySellers.map((r) => `<li><span class="name">${esc(r.name)}</span>${chipHtml(r.status)}
-      <span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""} · ${esc(r.city || "")} · Pin ${esc(r.pin)} · ₹${r.feeDiscount || 0} off the monthly fee</span></li>`).join("")
+  $("#ms-list").innerHTML = mySellers.length ? mySellers.map((r) => `<li><span class="name">${esc(r.name)}</span>${chipHtml(r.status)}${pausedChip(r)}
+      <span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""} · ${esc(r.city || "")} · Pin ${esc(r.pin)} · ₹${r.feeDiscount || 0} off the monthly fee</span>
+      <button type="button" class="btn ghost small" data-pause="${esc(r.id)}">${r.servicesPaused ? "Resume services" : "Stop services"}</button></li>`).join("")
     : `<li class="empty" style="display:block">No sellers enrolled yet.</li>`;
 }
+// A partner can stop or resume services for a seller they enrolled, on the seller's word.
+$("#ms-list").addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-pause]"), r = mySellers.find((x) => x.id === btn?.dataset.pause);
+  if (!r) return;
+  btn.disabled = true;
+  try {
+    await updateDoc(doc(db, "sellers", r.id), { servicesPaused: !r.servicesPaused, servicesChangedAt: serverTimestamp() });
+    await loadMySellers();
+  } catch (err) { btn.disabled = false; alert(`Couldn't update: ${err.message}`); }
+});
 
 $("#es-form").onsubmit = async (e) => {
   e.preventDefault();

@@ -15,7 +15,7 @@ import { checkKyc, readKyc, fillKyc, wireKycSkips } from "./kyc.js?v=dev";
 import { sellingPrice, rupees, itemWord, fieldsFor } from "./product-fields.js?v=dev";
 import { fillStates, autofillFromPin, stateFromPin, lookupPin } from "./places.js?v=dev";
 import { ratingOf, ratingText, starString } from "./ratings.js?v=dev";
-import { partnerRows, partnerStats, wirePartnerReview } from "./partner-review.js?v=dev";
+import { partnerRows, partnerStats, wirePartnerReview, pausedChip } from "./partner-review.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
 const ADMIN = SUPER_ADMIN_EMAIL.toLowerCase();
@@ -109,7 +109,7 @@ $("#sign-out").onclick = () => signOut(auth);
 
 // ---------- Sellers and buyers
 // No location until the admin types a pin code or uses GPS; until then every record shows.
-let sellers = [], buyers = [], products = [], reviews = [], partners = [], current = { origin: null, label: "", pin: "" };
+let sellers = [], buyers = [], products = [], reviews = [], partners = [], sales = [], current = { origin: null, label: "", pin: "" };
 const RADIUS = 50; // km counted as "near"
 const chip = { "Verified": "ok", "Active": "ok", "Pending KYC": "warn", "New": "warn", "Suspended": "bad", "Flagged": "bad", "KYC Rejected": "bad" };
 const km = (a, b) => {
@@ -124,13 +124,14 @@ const stat = (n, t) => `<div class="stat"><b>${n.toLocaleString("en-IN")}</b><sp
 async function load() {
   $("#data-note").textContent = "Loading sellers and buyers…";
   try {
-    const [s, b, p, v, pa] = await Promise.all([getDocs(collection(db, "sellers")), getDocs(collection(db, "buyers")), getDocs(collection(db, "products")),
-      getDocs(collection(db, "reviews")).catch(() => null), getDocs(collection(db, "partners")).catch(() => null)]);
+    const [s, b, p, v, pa, sa] = await Promise.all([getDocs(collection(db, "sellers")), getDocs(collection(db, "buyers")), getDocs(collection(db, "products")),
+      getDocs(collection(db, "reviews")).catch(() => null), getDocs(collection(db, "partners")).catch(() => null), getDocs(collection(db, "sales")).catch(() => null)]);
     sellers = s.docs.map((d) => ({ id: d.id, ...d.data() }));
     buyers = b.docs.map((d) => ({ id: d.id, ...d.data() }));
     products = p.docs.map((d) => ({ id: d.id, ...d.data() }));
     reviews = v ? v.docs.map((d) => ({ id: d.id, ...d.data() })) : [];
     partners = pa ? pa.docs.map((d) => ({ id: d.id, ...d.data() })) : [];
+    sales = sa ? sa.docs.map((d) => d.data()) : [];
     await syncPublic();
     const hasExamples = [...sellers, ...buyers].some((r) => r.example);
     $("#seed-btn").hidden = !(hasExamples || sellers.length + buyers.length === 0);
@@ -179,6 +180,11 @@ async function syncPublic() {
 
 const fieldLabel = (p, key) => fieldsFor(p.category, p.subCategory).find((f) => f.key === key)?.label || key;
 const countProducts = (sellerId) => products.filter((p) => p.sellerId === sellerId).length;
+// " · 3 sales, ₹1,200" from the sales the seller recorded.
+const salesOf = (sellerId) => {
+  const mine = sales.filter((x) => x.sellerId === sellerId);
+  return mine.length ? ` · ${mine.length} sale${mine.length === 1 ? "" : "s"}, ${rupees(mine.reduce((n, x) => n + (x.amount || 0), 0))}` : "";
+};
 
 function render() {
   const { origin, label, pin } = current;
@@ -194,7 +200,7 @@ function render() {
   const scope = anywhere ? "in total" : `within ${RADIUS} km`;
   $("#sellers-count").textContent = sNear.length;
   $("#buyers-count").textContent = bNear.length;
-  $("#seller-stats").innerHTML = stat(sNear.length, scope) + stat(sNear.filter((x) => x.r.status === "Verified").length, "verified") + stat(sNear.filter((x) => x.r.status !== "Verified").length, "need review");
+  $("#seller-stats").innerHTML = stat(sNear.length, scope) + stat(sNear.filter((x) => x.r.status === "Verified").length, "verified") + stat(sNear.filter((x) => x.r.status !== "Verified").length, "need review") + stat(sNear.filter((x) => x.r.servicesPaused).length, "services paused");
   $("#buyer-stats").innerHTML = stat(bNear.length, scope) + stat(bNear.reduce((n, x) => n + (x.r.orders || 0), 0), "orders placed") + stat(bNear.filter((x) => x.r.status === "New").length, "new");
   const list = (all, few, html) => few.length ? few.map(html).join("")
     : anywhere ? `<li class="empty" style="display:block">None yet.</li>`
@@ -202,7 +208,7 @@ function render() {
   const dist = (d) => anywhere ? "" : fmt(d);
   const rated = (id) => { const x = ratingOf(reviews, id); return x.n ? ` · ${ratingText(x)}` : ""; };
   $("#sellers-list").innerHTML = list(s, sNear, ({ r, d }) =>
-    `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${picked.has(r.id) ? " checked" : ""}><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · ${placeOf(r)}${countProducts(r.id) ? ` · ${countProducts(r.id)} products` : ""}${rated(r.id)}${r.ownerUid ? " · signed up" : ""}${viaPartner(r)}</span><span class="dist">${dist(d)}</span><span class="row-actions">${resetBtn(r.ownerUid && (r.loginEmail || r.email), r.name)}<button type="button" class="btn ghost small kyc-btn" data-seller="${esc(r.id)}">Review KYC</button></span></li>`);
+    `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${picked.has(r.id) ? " checked" : ""}><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span>${pausedChip(r)}<span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · ${placeOf(r)}${countProducts(r.id) ? ` · ${countProducts(r.id)} products` : ""}${salesOf(r.id)}${rated(r.id)}${r.ownerUid ? " · signed up" : ""}${viaPartner(r)}</span><span class="dist">${dist(d)}</span><span class="row-actions">${resetBtn(r.ownerUid && (r.loginEmail || r.email), r.name)}<button type="button" class="btn ghost small kyc-btn" data-seller="${esc(r.id)}">Review KYC</button></span></li>`);
   shownSellers = sNear.map((x) => x.r.id);
   syncPicks();
   $("#buyers-list").innerHTML = list(b, bNear, ({ r, d }) =>
