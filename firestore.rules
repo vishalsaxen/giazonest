@@ -5,7 +5,7 @@ service cloud.firestore {
     // public/firebase-config.js.
     function isSuperAdmin() {
       return request.auth != null
-        && request.auth.token.email == 'vishalsaxen@gmail.com';
+        && request.auth.token.email == 'gizee@giazonest.com';
     }
     function signedIn() {
       return request.auth != null;
