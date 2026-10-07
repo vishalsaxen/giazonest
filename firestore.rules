@@ -51,6 +51,10 @@ service cloud.firestore {
         && request.resource.data.feeDiscount is int
         && request.resource.data.feeDiscount >= 0 && request.resource.data.feeDiscount <= 100
         && !request.resource.data.keys().hasAny(['ownerUid', 'kyc', 'kycReviewedAt', 'kycReviewedBy', 'kycNote', 'example']);
+      // The partner can stop or resume services for a seller they enrolled.
+      allow update: if signedIn() && resource.data.partnerUid == request.auth.uid
+        && changed().hasOnly(['servicesPaused', 'servicesChangedAt'])
+        && request.resource.data.servicesPaused is bool;
     }
     // Partner records: Partner ID, name, date of birth, mobile, PAN and Aadhaar last 4 only.
     // A partner creates their own account and record; the super admin approves.
@@ -126,6 +130,25 @@ service cloud.firestore {
       }
       allow create: if signedIn() && validPhoto();
       allow update: if signedIn() && resource.data.sellerId == request.auth.uid && validPhoto();
+      allow delete: if signedIn() && resource.data.sellerId == request.auth.uid;
+    }
+    // Sales a seller records: product, quantity and the total the buyer paid.
+    // A seller can read, add and remove only their own; the super admin sees all.
+    match /sales/{sid} {
+      function validSale() {
+        let x = request.resource.data;
+        return x.keys().hasOnly(['sellerId', 'productId', 'productName', 'qty', 'amount', 'soldAt'])
+          && x.sellerId == request.auth.uid
+          && exists(/databases/$(database)/documents/sellers/$(request.auth.uid))
+          && (x.productId == null || x.productId is string)
+          && x.productName is string && x.productName.size() > 0 && x.productName.size() <= 80
+          && x.qty is int && x.qty >= 1
+          && x.amount is number && x.amount >= 0
+          && x.soldAt == request.time;
+      }
+      allow read, write: if isSuperAdmin();
+      allow read: if signedIn() && resource.data.sellerId == request.auth.uid;
+      allow create: if signedIn() && validSale();
       allow delete: if signedIn() && resource.data.sellerId == request.auth.uid;
     }
     // User ID -> email, so shoppers can sign in with their user ID.

@@ -124,6 +124,18 @@
 
     <div class="msg status-banner" id="status-banner" hidden></div>
 
+    <section class="panel" id="services-panel" aria-labelledby="services-h" hidden>
+      <div class="panel-head">
+        <h2 id="services-h">Services</h2>
+        <span class="chip" id="services-chip"></span>
+      </div>
+      <div class="row">
+        <p class="hint" id="services-note" style="margin:0"></p>
+        <button class="btn small" type="button" id="services-toggle"></button>
+      </div>
+      <div id="services-msg" class="msg" hidden></div>
+    </section>
+
     <section class="panel" aria-labelledby="shop-h">
       <div class="panel-head">
         <h2 id="shop-h">Your shop</h2>
@@ -216,6 +228,15 @@
       <ul class="products" id="product-list"></ul>
     </section>
 
+    <section class="panel" id="sales-panel" aria-labelledby="sales-h" hidden>
+      <div class="panel-head">
+        <h2 id="sales-h">Sales <span class="count" id="sale-count">0</span></h2>
+        <button class="btn small" type="button" id="add-sale">+ Record a sale</button>
+      </div>
+      <p class="hint" id="sales-note"></p>
+      <ul class="reviews" id="sale-list"></ul>
+    </section>
+
     <section class="panel" id="ratings-panel" aria-labelledby="ratings-h" hidden>
       <div class="panel-head">
         <h2 id="ratings-h">Ratings and feedback <span class="count" id="rating-count">0</span></h2>
@@ -278,6 +299,38 @@
         <div class="row" style="gap:8px;margin-left:auto">
           <button type="button" class="btn ghost" id="pd-cancel">Cancel</button>
           <button type="submit" class="btn" id="pd-save">Save product</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Record a sale -->
+<div class="overlay" id="sale-dialog" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="sd-title">
+    <h2 id="sd-title" style="font-size:1.25rem">Record a sale</h2>
+    <form id="sale-form" class="stack" novalidate>
+      <label for="sd-product">Product *
+        <select id="sd-product" required></select>
+      </label>
+      <label for="sd-name" id="sd-name-label" hidden>Product name *
+        <input id="sd-name" type="text" maxlength="80" placeholder="What did you sell?">
+      </label>
+      <div class="kyc-grid">
+        <label for="sd-qty">Quantity *
+          <input id="sd-qty" type="number" inputmode="numeric" min="1" step="1" value="1" required>
+        </label>
+        <label for="sd-amount">Total the buyer paid (₹) *
+          <input id="sd-amount" type="number" inputmode="decimal" min="0" step="0.01" required>
+        </label>
+      </div>
+      <p class="hint" id="sd-hint"></p>
+      <div id="sd-msg" class="msg" hidden></div>
+      <div class="row">
+        <span></span>
+        <div class="row" style="gap:8px;margin-left:auto">
+          <button type="button" class="btn ghost" id="sd-cancel">Cancel</button>
+          <button type="submit" class="btn" id="sd-save">Save sale</button>
         </div>
       </div>
     </form>

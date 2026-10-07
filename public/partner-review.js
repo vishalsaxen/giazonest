@@ -7,6 +7,8 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const show = (el, text, kind) => { el.textContent = text; el.className = "msg " + (kind || ""); el.hidden = false; };
 const chip = { "Verified": "ok", "Pending KYC": "warn", "KYC Rejected": "bad", "Suspended": "bad" };
 const chipHtml = (s) => `<span class="chip ${chip[s] || "warn"}">${esc(s)}</span>`;
+// Sellers can stop their services for a while; this shows it next to their status.
+export const pausedChip = (r) => r.servicesPaused ? `<span class="chip bad">Services paused</span>` : "";
 const stat = (n, t) => `<div class="stat"><b>${n.toLocaleString("en-IN")}</b><span>${t}</span></div>`;
 
 // Pending first, then rejected, then approved; by name within each.
@@ -45,7 +47,7 @@ export function wirePartnerReview({ db, auth, partners, sellersOf, onSaved }) {
     $("#pk-note").value = p.kycNote || "";
     const mine = sellersOf(p.id);
     $("#pk-seller-count").textContent = mine.length;
-    $("#pk-sellers").innerHTML = mine.length ? mine.map((r) => `<li><span class="name">${esc(r.name)}</span>${chipHtml(r.status)}
+    $("#pk-sellers").innerHTML = mine.length ? mine.map((r) => `<li><span class="name">${esc(r.name)}</span>${chipHtml(r.status)}${pausedChip(r)}
         <span class="meta">Pin ${esc(r.pin)} · ₹${r.feeDiscount || 0} off the monthly fee</span></li>`).join("")
       : `<li class="empty" style="display:block">None yet.</li>`;
     const when = p.kycReviewedAt?.toDate?.();
