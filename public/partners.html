@@ -19,7 +19,7 @@
       <div style="display:flex;flex-direction:column;gap:12px">
         <span class="role">● GiaZoNest Partners</span>
         <h1>Where selling meets shopping.</h1>
-        <p>GiZee partners bring sellers onto GiaZoNest. The super admin enrolls partners and approves their KYC; approved partners enroll sellers.</p>
+        <p>GiZee partners bring sellers onto GiaZoNest. Create a partner account, fill in your details, and once GiaZoNest approves your KYC you can enroll sellers.</p>
       </div>
       <p class="hint" style="color:inherit;opacity:.8"><a href="index.html" style="color:inherit">← Back to the admin console</a></p>
     </aside>
@@ -28,7 +28,7 @@
       <div id="step-signin" class="stack">
         <div>
           <h2>Partner sign in</h2>
-          <p class="sub">Partners and the super admin sign in here. New partner? <button type="button" class="link" id="go-first">Set your password</button></p>
+          <p class="sub">New partner? <button type="button" class="link" id="go-signup">Create a partner account</button></p>
         </div>
         <form id="signin-form" novalidate>
           <label for="si-email">Email
@@ -46,10 +46,32 @@
         </form>
       </div>
 
+      <div id="step-signup" class="stack" hidden>
+        <div>
+          <h2>Create a partner account</h2>
+          <p class="sub">Already a partner? <button type="button" class="link back">Sign in</button></p>
+        </div>
+        <form id="signup-form" novalidate>
+          <label for="su-email">Email *
+            <input id="su-email" type="email" autocomplete="email" required>
+          </label>
+          <label for="su-pass">Password *
+            <input id="su-pass" type="password" autocomplete="new-password" required>
+          </label>
+          <ul class="rules" data-for="su-pass"></ul>
+          <label for="su-confirm">Confirm password *
+            <input id="su-confirm" type="password" autocomplete="new-password" required>
+          </label>
+          <div id="su-msg" class="msg" hidden></div>
+          <button class="btn" type="submit">Create account</button>
+          <p class="hint">Next you'll fill in your partner details. GiaZoNest reviews your KYC before you can enroll sellers.</p>
+        </form>
+      </div>
+
       <div id="step-forgot" class="stack" hidden>
         <div>
-          <h2>Set or reset your password</h2>
-          <p class="sub">Enter the email GiaZoNest enrolled you with. We'll email you a link to choose a password.</p>
+          <h2>Reset your password</h2>
+          <p class="sub">We'll email you a link to choose a new password.</p>
         </div>
         <form id="forgot-form" novalidate>
           <label for="fg-email">Email
@@ -66,7 +88,7 @@
   </div>
 </main>
 
-<!-- ============ SUPER ADMIN: ENROLL AND APPROVE PARTNERS ============ -->
+<!-- ============ SUPER ADMIN: APPROVE PARTNERS ============ -->
 <main id="admin-view" class="view" hidden>
   <div class="wrap">
     <header class="top">
@@ -78,46 +100,6 @@
       </div>
     </header>
 
-    <div class="split">
-      <section class="panel" aria-labelledby="enroll-h">
-        <div class="panel-head">
-          <h2 id="enroll-h">Enroll a partner</h2>
-        </div>
-        <form id="partner-form" class="stack" novalidate>
-          <div class="kyc-grid">
-            <label for="pa-type">Partner type *
-              <select id="pa-type" required></select>
-            </label>
-            <label for="pa-name">Name *
-              <input id="pa-name" type="text" maxlength="80" autocomplete="off" required>
-            </label>
-            <label for="pa-mobile">Mobile number *
-              <input id="pa-mobile" data-format="mobile" type="tel" inputmode="numeric" autocomplete="off" placeholder="9876543210" required>
-            </label>
-            <label for="pa-pan">PAN card number *
-              <input id="pa-pan" data-format="caps" autocapitalize="characters" spellcheck="false" type="text" maxlength="10" autocomplete="off" placeholder="ABCDE1234F" required>
-            </label>
-            <label for="pa-aadhaar">Aadhaar card number *
-              <input id="pa-aadhaar" data-format="digits" type="text" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="12 digits" required>
-              <span class="hint">Only the last 4 digits are saved.</span>
-            </label>
-            <label for="pa-email">Email *
-              <input id="pa-email" type="email" autocomplete="off" placeholder="partner@example.com" required>
-              <span class="hint">The partner signs in with this.</span>
-            </label>
-            <label for="pa-address" style="grid-column:1/-1">Address <span class="hint">optional</span>
-              <textarea id="pa-address" rows="2" maxlength="300"></textarea>
-            </label>
-          </div>
-          <div class="pid-box">
-            <span class="hint">Partner ID</span>
-            <b id="pa-id">Fill in the name and Aadhaar</b>
-          </div>
-          <div id="pa-msg" class="msg" hidden></div>
-          <button class="btn" type="submit" id="pa-save">Enroll partner</button>
-        </form>
-      </section>
-
       <section class="panel" aria-labelledby="partners-h">
         <div class="panel-head">
           <h2 id="partners-h">Partners <span class="count" id="partners-count">0</span></h2>
@@ -125,8 +107,7 @@
         <div class="stats" id="partner-stats"></div>
         <ul class="list" id="partners-list"></ul>
       </section>
-    </div>
-    <p class="example" id="data-note"></p>
+    <p class="example" id="data-note">Partners create their own account on this page and fill in their details. Approve their KYC here or in the admin console.</p>
   </div>
 </main>
 
@@ -158,6 +139,60 @@
   </div>
 </div>
 
+<!-- ============ PARTNER: YOUR DETAILS (first time, or to fix before approval) ============ -->
+<main id="details-view" class="view" hidden>
+  <div class="wrap narrow">
+    <header class="top">
+      <div class="logo"><span class="mark">GZ</span>GiaZoNest <span class="badge">Partner</span></div>
+      <div class="who">
+        <span class="hint" id="dt-email"></span>
+        <button class="btn ghost small sign-out" type="button">Sign out</button>
+      </div>
+    </header>
+    <section class="panel" aria-labelledby="dt-h">
+      <div>
+        <h1 id="dt-h" style="font-size:1.4rem">Your partner details</h1>
+        <p class="sub" id="dt-sub">Fill in your details. GiaZoNest reviews your KYC, and once it's approved you can enroll sellers.</p>
+      </div>
+      <form id="partner-form" class="stack" novalidate>
+        <div class="kyc-grid">
+          <label for="pa-type">Partner type *
+            <select id="pa-type" required></select>
+          </label>
+          <label for="pa-name">Name *
+            <input id="pa-name" type="text" maxlength="80" autocomplete="name" required>
+          </label>
+          <label for="pa-dob">Date of birth *
+            <input id="pa-dob" data-format="date" type="text" inputmode="numeric" maxlength="10" autocomplete="bday" placeholder="DD/MM/YYYY" required>
+          </label>
+          <label for="pa-mobile">Mobile number *
+            <input id="pa-mobile" data-format="mobile" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="9876543210" required>
+          </label>
+          <label for="pa-pan">PAN card number *
+            <input id="pa-pan" data-format="caps" autocapitalize="characters" spellcheck="false" type="text" maxlength="10" autocomplete="off" placeholder="ABCDE1234F" required>
+          </label>
+          <label for="pa-aadhaar">Aadhaar card number *
+            <input id="pa-aadhaar" data-format="digits" type="text" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="12 digits" required>
+            <span class="hint" id="pa-aadhaar-hint">Only the last 4 digits are saved.</span>
+          </label>
+          <label for="pa-address" style="grid-column:1/-1">Address <span class="hint">optional</span>
+            <textarea id="pa-address" rows="2" maxlength="300" autocomplete="street-address"></textarea>
+          </label>
+        </div>
+        <div class="pid-box">
+          <span class="hint">Your Partner ID</span>
+          <b id="pa-id">Fill in your name and Aadhaar</b>
+        </div>
+        <div id="pa-msg" class="msg" hidden></div>
+        <div class="row">
+          <button type="button" class="btn ghost" id="pa-cancel" hidden>Cancel</button>
+          <button class="btn" type="submit" id="pa-save">Submit for KYC</button>
+        </div>
+      </form>
+    </section>
+  </div>
+</main>
+
 <!-- ============ PARTNER: ENROLL SELLERS ============ -->
 <main id="partner-view" class="view" hidden>
   <div class="wrap">
@@ -170,6 +205,7 @@
     </header>
 
     <div class="msg status-banner" id="me-banner" hidden></div>
+    <p class="row" id="me-edit-row" hidden style="justify-content:flex-start;margin:-6px 0 16px"><button type="button" class="btn ghost small" id="me-edit">Edit your details</button></p>
 
     <div class="split">
       <section class="panel" aria-labelledby="es-h">

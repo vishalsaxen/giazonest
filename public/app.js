@@ -243,7 +243,7 @@ function renderPartners() {
   $("#partner-pending-count").textContent = partners.filter((p) => p.status === "Pending KYC").length;
   $("#partners-count").textContent = partners.length;
   $("#partner-stats").innerHTML = partnerStats(partners, sellers.filter((r) => r.partnerUid).length);
-  $("#partners-list").innerHTML = partnerRows(partners, partnerSellers, "No partners yet. Enroll one on the Partners page.");
+  $("#partners-list").innerHTML = partnerRows(partners, partnerSellers, "No partners yet. Partners sign up on the Partners page.");
 }
 const partnerReview = wirePartnerReview({ db, auth, partners: () => partners, sellersOf: partnerSellers, onSaved: () => load() });
 $("#partners-list").addEventListener("click", (e) => {

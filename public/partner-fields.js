@@ -8,7 +8,6 @@ export const MONTHLY_FEE = 100; // seller subscription in rupees; a partner's di
 const PAN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 const AADHAAR = /^[2-9][0-9]{11}$/;
 const MOBILE = /^[6-9][0-9]{9}$/;
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // "Vishal Saxena", "123412341234", 5 Oct 2026 -> "VIS-1234-051026".
 // Names with fewer than 3 letters are padded with X.
@@ -26,14 +25,31 @@ export function uniquePartnerId(id, taken) {
   return `${id}-${n}`;
 }
 
-// Returns an error message, or "".
+// Date of birth typed as DD/MM/YYYY. Returns a Date, or null when it isn't a real date.
+export function parseDob(text) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(text).trim());
+  if (!m) return null;
+  const d = new Date(+m[3], m[2] - 1, +m[1]);
+  return d.getDate() === +m[1] && d.getMonth() === m[2] - 1 ? d : null;
+}
+export function checkDob(text, today = new Date()) {
+  const d = parseDob(text);
+  if (!d) return "Date of birth should be a real date written DD/MM/YYYY, like 05/10/1990.";
+  const age = today.getFullYear() - d.getFullYear() - (today < new Date(today.getFullYear(), d.getMonth(), d.getDate()) ? 1 : 0);
+  if (age < 18) return "Partners must be at least 18 years old.";
+  if (age > 100) return "Check the year of birth.";
+  return "";
+}
+
+// Returns an error message, or "". The Aadhaar is checked only while it can still be typed (new partners).
 export function checkPartner(p) {
   if (!PARTNER_TYPES.includes(p.type)) return "Choose the partner type.";
-  if (!/[A-Za-z]/.test(p.name)) return "Enter the partner's name.";
+  if (!/[A-Za-z]/.test(p.name)) return "Enter your name.";
+  const badDob = checkDob(p.dob);
+  if (badDob) return badDob;
   if (!MOBILE.test(p.mobile)) return "Mobile number should be a 10-digit Indian mobile number, like 9876543210.";
   if (!PAN.test(p.pan)) return "PAN should look like ABCDE1234F.";
-  if (!AADHAAR.test(p.aadhaar)) return "Aadhaar should be 12 digits and can't start with 0 or 1.";
-  if (!EMAIL.test(p.email)) return "Enter the partner's email. They sign in with it.";
+  if (p.aadhaar !== undefined && !AADHAAR.test(p.aadhaar)) return "Aadhaar should be 12 digits and can't start with 0 or 1.";
   return "";
 }
 
