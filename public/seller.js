@@ -18,6 +18,7 @@ import { shrink, thumb } from "./photos.js?v=dev";
 import { fillStates, autofillFromPin, stateFromPin } from "./places.js?v=dev";
 import { termsGate, wireTermsLink, TERMS_VERSION } from "./terms.js?v=dev";
 import { ratingOf, ratingText, starString } from "./ratings.js?v=dev";
+import { REQUEST_CHIP, whenText, requestWhat, byNewest } from "./requests.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
 if (firebaseConfig.apiKey.startsWith("PASTE")) {
@@ -153,6 +154,7 @@ function showStatus() {
     : "GiaZoNest checks these before your shop goes live. If you don't have one, tick \"Not available\".";
   $("#products-panel").hidden = !shop;
   $("#ratings-panel").hidden = !shop;
+  $("#requests-panel").hidden = !shop;
 }
 
 function fillShop() {
@@ -221,6 +223,49 @@ async function loadReviews() {
       ${x.text ? `<p>${esc(x.text)}</p>` : ""}
     </li>`).join("") : `<li class="empty">No ratings yet. Shoppers can rate you once your shop is verified.</li>`;
 }
+
+// ---------- Orders and enquiries from shoppers
+// Each comes with an OTP the shopper also sees. The shopper quotes it when they get in
+// touch; if it matches the one shown here, the request is genuine and the seller confirms it.
+let requests = [];
+async function loadRequests() {
+  const snap = await getDocs(query(collection(db, "requests"), where("sellerId", "==", me.uid)));
+  requests = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  renderRequests();
+}
+function renderRequests() {
+  const list = [...requests].sort((a, b) => (b.status === "Pending") - (a.status === "Pending") || byNewest(a, b));
+  const pending = list.filter((r) => r.status === "Pending").length;
+  $("#request-count").textContent = list.length;
+  $("#requests-note").textContent = pending ? `${pending} waiting. Ask the shopper for their OTP and confirm only if it matches.` : "";
+  $("#request-list").innerHTML = list.length ? list.map((r) => `
+    <li class="result">
+      <div class="result-main">
+        <span class="name">${esc(requestWhat(r))}${r.kind === "Order" && r.price != null ? ` · ${rupees(r.price * r.qty)}` : ""}</span>
+        <span class="meta">From ${esc(r.buyerName)}${r.buyerPhone ? ` · <a href="tel:+91${esc(r.buyerPhone)}">${esc(r.buyerPhone)}</a>` : ""} · ${whenText(r.createdAt)} · <span class="chip ${REQUEST_CHIP[r.status] || ""}">${esc(r.status)}</span></span>
+        ${r.message ? `<span class="meta">“${esc(r.message)}”</span>` : ""}
+      </div>
+      <div class="result-actions">
+        <span class="otp small" title="OTP">OTP ${esc(r.otp)}</span>
+        ${r.status === "Pending" ? `<button type="button" class="btn small" data-confirm-req="${esc(r.id)}">OTP matches, confirm</button>
+        <button type="button" class="btn ghost small danger" data-reject-req="${esc(r.id)}">Doesn't match, reject</button>` : ""}
+      </div>
+    </li>`).join("")
+    : `<li class="empty">No orders or enquiries yet. Shoppers can send them once your shop is verified.</li>`;
+}
+$("#request-list").addEventListener("click", async (e) => {
+  const ok = e.target.closest("[data-confirm-req]")?.dataset.confirmReq, no = e.target.closest("[data-reject-req]")?.dataset.rejectReq;
+  const r = requests.find((x) => x.id === (ok || no));
+  if (!r) return;
+  if (no && !confirm(`Reject this ${r.kind.toLowerCase()} from ${r.buyerName}? Do this when the OTP they give you doesn't match ${r.otp}.`)) return;
+  e.target.disabled = true;
+  const status = ok ? "Confirmed" : "Rejected";
+  try {
+    await updateDoc(doc(db, "requests", r.id), { status, decidedAt: serverTimestamp() });
+    r.status = status;
+    renderRequests();
+  } catch (err) { e.target.disabled = false; alert(`Couldn't update: ${err.message}`); }
+});
 
 // ---------- Products
 // Products show on the shop only while the seller is verified (publicSellers has their listing).
@@ -434,6 +479,7 @@ async function enter(user) {
   showStatus();
   if (shop) {
     await loadProducts().catch((err) => ($("#products-note").textContent = `Couldn't load products: ${err.message}`));
+    loadRequests().catch(() => ($("#request-list").innerHTML = `<li class="empty">Couldn't load orders and enquiries.</li>`));
     loadReviews().catch(() => ($("#rating-list").innerHTML = `<li class="empty">Couldn't load ratings.</li>`));
   }
 }

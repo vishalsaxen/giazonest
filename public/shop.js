@@ -14,6 +14,7 @@ import { fieldsFor, itemWord, sellingPrice, rupees } from "./product-fields.js?v
 import { termsGate, wireTermsLink, TERMS_VERSION } from "./terms.js?v=dev";
 import { ratingOf, ratingText, starString } from "./ratings.js?v=dev";
 import { STATES, stateFromPin } from "./places.js?v=dev";
+import { newOtp, REQUEST_CHIP, whenText, requestWhat, byNewest } from "./requests.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
 if (firebaseConfig.apiKey.startsWith("PASTE")) {
@@ -135,7 +136,7 @@ $("#forgot-form").onsubmit = async (e) => {
 $("#sign-out").onclick = () => signOut(auth);
 
 // ---------- Search
-let me = null, here = null, sellers = [], products = [], reviews = [];
+let me = null, here = null, sellers = [], products = [], reviews = [], requests = [];
 const catSel = $("#f-cat"), subSel = $("#f-sub"), typeSel = $("#f-type");
 const opt = (v, label = v) => { const o = document.createElement("option"); o.value = v; o.textContent = label; return o; };
 Object.keys(CATEGORIES).forEach((c) => catSel.append(opt(c)));
@@ -235,6 +236,7 @@ function render() {
         <span class="meta rating">${ratingText(ratingOf(reviews, r.id))}</span>
       </div>
       <div class="result-actions">
+        <button type="button" class="btn small" data-enquire="${esc(r.id)}">Enquire</button>
         <button type="button" class="btn ghost small" data-rate="${esc(r.id)}">${reviews.some((x) => x.sellerId === r.id && x.uid === auth.currentUser?.uid) ? "Edit my rating" : "Rate"}</button>
         ${r.whatsapp ? `<a class="btn small" href="${whatsappLink(r)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
         ${r.email ? `<a class="btn ghost small" href="mailto:${esc(r.email)}">Email</a>` : ""}
@@ -273,6 +275,7 @@ async function enter(user) {
     const [pub, mine, prods] = await Promise.all([getDocs(collection(db, "publicSellers")), getDoc(doc(db, "buyers", user.uid)),
       getDocs(query(collection(db, "products"), where("live", "==", true)))]);
     reviews = (await getDocs(collection(db, "reviews")).catch(() => ({ docs: [] }))).docs.map((d) => ({ id: d.id, ...d.data() }));
+    loadRequests(user.uid);
     sellers = pub.docs.map((d) => ({ id: d.id, ...d.data() }));
     products = prods.docs.map((d) => ({ id: d.id, ...d.data() }));
     me = mine.exists() ? mine.data() : null;
@@ -335,7 +338,9 @@ $("#product-results").addEventListener("click", async (e) => {
     .filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
   $("#pv-seller").innerHTML = `Sold by <b>${esc(s.name || p.sellerName)}</b> · ${ratingText(ratingOf(reviews, p.sellerId))}${s.pin ? ` · Pin ${esc(s.pin)}` : ""}${fmt(km(here, s)) ? ` · ${fmt(km(here, s))} away` : ""} · <span class="chip ok">KYC verified</span>`;
   $("#pv-actions").innerHTML = [
-    s.whatsapp && p.stock > 0 ? `<a class="btn" href="${whatsappLink(s, `Hi ${s.name}, I'd like to buy ${p.name} (${rupees(sellingPrice(p))}) that I saw on GiaZoNest.`)}" target="_blank" rel="noopener">Buy on WhatsApp</a>` : "",
+    p.stock > 0 ? `<button type="button" class="btn" data-order="${esc(p.id)}">Place order</button>` : "",
+    `<button type="button" class="btn ghost" data-ask="${esc(p.id)}">Send enquiry</button>`,
+    s.whatsapp && p.stock > 0 ? `<a class="btn ghost" href="${whatsappLink(s, `Hi ${s.name}, I'd like to buy ${p.name} (${rupees(sellingPrice(p))}) that I saw on GiaZoNest.`)}" target="_blank" rel="noopener">Buy on WhatsApp</a>` : "",
     s.whatsapp && p.stock <= 0 ? `<a class="btn ghost" href="${whatsappLink(s, `Hi ${s.name}, will ${p.name} be back in stock?`)}" target="_blank" rel="noopener">Ask on WhatsApp</a>` : "",
     s.email ? `<a class="btn ghost" href="mailto:${esc(s.email)}?subject=${encodeURIComponent(p.name + " on GiaZoNest")}">Email seller</a>` : ""
   ].join("");
@@ -415,4 +420,110 @@ $("#rate-delete").onclick = async () => {
     closeRate();
     render();
   } catch (err) { show($("#rate-msg"), `Couldn't delete: ${err.message}`, "bad"); }
+};
+
+// ---------- Orders and enquiries, each with an OTP shared by the shopper and the seller
+async function loadRequests(uid) {
+  try {
+    const snap = await getDocs(query(collection(db, "requests"), where("buyerUid", "==", uid)));
+    requests = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch { requests = []; }
+  renderRequests();
+}
+function renderRequests() {
+  const list = [...requests].sort(byNewest);
+  $("#request-count").textContent = list.length;
+  $("#request-list").innerHTML = list.length ? list.map((r) => `
+    <li class="result">
+      <div class="result-main">
+        <span class="name">${esc(requestWhat(r))}</span>
+        <span class="meta">To ${esc(r.sellerName)} · ${whenText(r.createdAt)} · <span class="chip ${REQUEST_CHIP[r.status] || ""}">${esc(r.status)}</span></span>
+        ${r.message ? `<span class="meta">“${esc(r.message)}”</span>` : ""}
+      </div>
+      <div class="result-actions">
+        <span class="otp small" title="Your OTP">OTP ${esc(r.otp)}</span>
+        ${r.status === "Pending" ? `<button type="button" class="btn ghost small" data-cancel-req="${esc(r.id)}">Cancel</button>` : ""}
+      </div>
+    </li>`).join("")
+    : `<li class="empty">No orders or enquiries yet. Open a product to place an order, or tap Enquire on a seller.</li>`;
+}
+$("#request-list").addEventListener("click", async (e) => {
+  const id = e.target.closest("[data-cancel-req]")?.dataset.cancelReq;
+  const r = requests.find((x) => x.id === id);
+  if (!r || !confirm(`Cancel this ${r.kind.toLowerCase()} to ${r.sellerName}?`)) return;
+  e.target.disabled = true;
+  try {
+    await updateDoc(doc(db, "requests", r.id), { status: "Cancelled", decidedAt: serverTimestamp() });
+    r.status = "Cancelled";
+    renderRequests();
+  } catch (err) { e.target.disabled = false; alert(`Couldn't cancel: ${err.message}`); }
+});
+
+const rq = $("#request-dialog");
+let asking = null; // { kind, seller, product }
+function openRequest(kind, seller, product = null) {
+  if (!seller?.id) return;
+  asking = { kind, seller, product };
+  $("#rq-form").reset();
+  $("#rq-form").hidden = false;
+  $("#rq-done").hidden = true;
+  $("#rq-msg").hidden = true;
+  $("#rq-title").textContent = kind === "Order" ? `Order ${product.name}` : `Ask ${seller.name}`;
+  $("#rq-sub").textContent = kind === "Order"
+    ? `${rupees(sellingPrice(product))} each from ${seller.name}. You pay the seller directly once they confirm.`
+    : product ? `About ${product.name}, sold by ${seller.name}.` : `Send ${seller.name} a question.`;
+  $("#rq-qty-label").hidden = kind !== "Order";
+  $("#rq-qty").max = product?.stock || 1;
+  $("#rq-send").textContent = kind === "Order" ? "Place order" : "Send enquiry";
+  rq.hidden = false;
+  (kind === "Order" ? $("#rq-qty") : $("#rq-text")).focus();
+}
+const closeRequest = () => { rq.hidden = true; asking = null; };
+$("#rq-cancel").onclick = closeRequest;
+$("#rq-close").onclick = closeRequest;
+rq.addEventListener("keydown", (e) => { if (e.key === "Escape") closeRequest(); });
+
+$("#pv-actions").addEventListener("click", (e) => {
+  const order = e.target.closest("[data-order]")?.dataset.order, ask = e.target.closest("[data-ask]")?.dataset.ask;
+  const p = products.find((x) => x.id === (order || ask));
+  if (!p) return;
+  const s = sellers.find((r) => r.id === p.sellerId);
+  closeView();
+  openRequest(order ? "Order" : "Enquiry", s, p);
+});
+$("#results").addEventListener("click", (e) => {
+  const id = e.target.closest("[data-enquire]")?.dataset.enquire;
+  if (id) openRequest("Enquiry", sellers.find((r) => r.id === id));
+});
+
+$("#rq-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const m = $("#rq-msg"), { kind, seller, product } = asking;
+  const qty = kind === "Order" ? Number($("#rq-qty").value) : 1;
+  if (kind === "Order" && (!Number.isInteger(qty) || qty < 1)) return show(m, "Enter how many you want, as a whole number.", "bad");
+  if (kind === "Order" && qty > product.stock) return show(m, `The seller has only ${product.stock} in stock.`, "bad");
+  const otp = newOtp(), message = $("#rq-text").value.trim();
+  const ref = doc(collection(db, "requests"));
+  const data = {
+    kind, otp, status: "Pending", qty, message,
+    buyerUid: auth.currentUser.uid, buyerName: (me?.name || auth.currentUser.displayName || "Shopper").slice(0, 80), buyerPhone: me?.phone || "",
+    sellerId: seller.id, sellerName: seller.name,
+    productId: product?.id || null, productName: product?.name || null, price: product ? sellingPrice(product) : null,
+    createdAt: serverTimestamp()
+  };
+  $("#rq-send").disabled = true;
+  try {
+    await setDoc(ref, data);
+    requests.push({ id: ref.id, ...data, createdAt: null });
+    renderRequests();
+    $("#rq-form").hidden = true;
+    $("#rq-done").hidden = false;
+    $("#rq-otp").textContent = otp;
+    $("#rq-done-text").textContent = `Sent to ${seller.name}, who sees the same OTP. Tell them this OTP when you message or call; they'll confirm your ${kind.toLowerCase()} once it matches. You can find it again under My orders and enquiries.`;
+    const wa = $("#rq-wa");
+    wa.hidden = !seller.whatsapp;
+    if (seller.whatsapp) wa.href = whatsappLink(seller, `Hi ${seller.name}, I sent you ${kind === "Order" ? `an order for ${qty} × ${product.name}` : `an enquiry${product ? ` about ${product.name}` : ""}`} on GiaZoNest. My OTP is ${otp}.`);
+    $("#rq-close").focus();
+  } catch (err) { show(m, `Couldn't send: ${err.message}`, "bad"); }
+  finally { $("#rq-send").disabled = false; }
 };

@@ -25,6 +25,7 @@ It is a static website (HTML, CSS, JavaScript) that uses Firebase for login (Aut
 - `public/places.js`: Indian states, and the state and city for a pin code (city from the free India Post lookup at api.postalpincode.in)
 - `public/terms.js`, `public/terms/`: the Terms & Conditions screen and texts
 - `public/ratings.js`: star rating helpers
+- `public/requests.js`: the OTP and display helpers for orders and enquiries
 - `public/partners.html`, `public/partners.js`: the Partners page, where GiZee partners sign up and fill in their details, the super admin approves their KYC, and approved partners enroll sellers
 - `public/partner-fields.js`: the Partner ID and the partner and discount checks
 - `public/firebase-config.js`: your Firebase project's web config and the super admin email
@@ -51,6 +52,12 @@ Products of verified sellers are marked `live`, and the shop shows only live pro
 Shopper profiles are saved in `buyers/{uid}`, so they appear in the admin Buyers list. `usernames/{userId}` maps each user ID to its email for sign-in.
 
 Ratings live in `reviews/{sellerId}_{shopperUid}`, one per shopper per seller. Shoppers can rate only verified sellers and can edit or delete their own rating; the admin can remove any rating from the seller's Review KYC window.
+
+## Orders and enquiries with an OTP
+
+On the shop, a shopper can **Place order** or **Send enquiry** from a product, or tap **Enquire** on a seller. Each request is saved in `requests/{id}` with a 6-digit OTP. The shopper sees the OTP straight away (and under **My orders and enquiries**), and the same OTP appears with the request in the seller's **Orders and enquiries** list. When the shopper messages or calls, they quote the OTP (the WhatsApp button puts it in the message); if it matches, the seller taps **OTP matches, confirm**, otherwise **Doesn't match, reject**. The shopper can cancel a request while it's pending. Only that shopper, that seller and the super admin can read a request, and nobody can change its OTP.
+
+The OTP is shown in the app, not sent by SMS: text messages need a paid SMS service and a server (Cloud Functions on the Blaze plan), which this site doesn't use yet.
 
 ## Partners
 

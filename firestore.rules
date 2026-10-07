@@ -165,6 +165,42 @@ service cloud.firestore {
       allow create, update: if signedIn() && validReview();
       allow delete: if isSuperAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
     }
+    // Orders and enquiries a shopper sends a seller. Each carries a 6-digit OTP
+    // that only the shopper and that seller can read: the shopper quotes it, and the
+    // seller confirms or rejects the request by matching it. The shopper can cancel
+    // a pending one. Nobody can change the OTP or who it's between.
+    match /requests/{rid} {
+      function validRequest() {
+        let r = request.resource.data;
+        return r.keys().hasOnly(['kind', 'otp', 'status', 'qty', 'message', 'buyerUid', 'buyerName', 'buyerPhone',
+                                 'sellerId', 'sellerName', 'productId', 'productName', 'price', 'createdAt'])
+          && r.kind in ['Order', 'Enquiry']
+          && r.otp is string && r.otp.matches('[0-9]{6}')
+          && r.status == 'Pending'
+          && r.qty is int && r.qty >= 1 && r.qty <= 9999
+          && r.message is string && r.message.size() <= 500
+          && r.buyerUid == request.auth.uid
+          && r.buyerName is string && r.buyerName.size() <= 80
+          && r.buyerPhone is string && r.buyerPhone.size() <= 15
+          && r.sellerId != request.auth.uid
+          && r.sellerName is string && r.sellerName.size() <= 80
+          && (r.kind == 'Enquiry' || r.productId is string)
+          && r.createdAt == request.time
+          && exists(/databases/$(database)/documents/publicSellers/$(r.sellerId));
+      }
+      function decided(to) {
+        return resource.data.status == 'Pending'
+          && request.resource.data.status in to
+          && changed().hasOnly(['status', 'decidedAt'])
+          && request.resource.data.decidedAt == request.time;
+      }
+      allow read, write: if isSuperAdmin();
+      allow read: if signedIn() && resource.data.buyerUid == request.auth.uid;
+      allow read: if signedIn() && resource.data.sellerId == request.auth.uid;
+      allow create: if signedIn() && validRequest();
+      allow update: if signedIn() && resource.data.sellerId == request.auth.uid && decided(['Confirmed', 'Rejected']);
+      allow update: if signedIn() && resource.data.buyerUid == request.auth.uid && decided(['Cancelled']);
+    }
     // Everything else stays closed until a rule opens it.
     match /{document=**} {
       allow read, write: if false;
