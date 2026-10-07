@@ -292,3 +292,4 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; 
 .help { font-size: .88rem; color: var(--muted); }
 .help summary { cursor: pointer; font-weight: 700; color: var(--ink); }
 .help p { margin: 6px 0 0; }
+.wrap.narrow { max-width: 760px; }

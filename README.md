@@ -25,7 +25,7 @@ It is a static website (HTML, CSS, JavaScript) that uses Firebase for login (Aut
 - `public/places.js`: Indian states, and the state and city for a pin code (city from the free India Post lookup at api.postalpincode.in)
 - `public/terms.js`, `public/terms/`: the Terms & Conditions screen and texts
 - `public/ratings.js`: star rating helpers
-- `public/partners.html`, `public/partners.js`: the Partners page, where the super admin enrolls GiZee partners and approves their KYC, and approved partners enroll sellers
+- `public/partners.html`, `public/partners.js`: the Partners page, where GiZee partners sign up and fill in their details, the super admin approves their KYC, and approved partners enroll sellers
 - `public/partner-fields.js`: the Partner ID and the partner and discount checks
 - `public/firebase-config.js`: your Firebase project's web config and the super admin email
 - `public/pincodes.js`: pin code locations and the example data
@@ -54,9 +54,9 @@ Ratings live in `reviews/{sellerId}_{shopperUid}`, one per shopper per seller. S
 
 ## Partners
 
-The super admin opens **Partners** (on the login page, or in the console header) to enroll a GiZee partner with name, mobile, PAN, Aadhaar, email and an optional address. The page builds the Partner ID from the first three letters of the name, the last four Aadhaar digits and the enrollment date (DDMMYY), like `VIS-1234-051026`; if that ID is taken it adds `-2`, `-3` and so on. Only the last four Aadhaar digits are saved.
+A partner opens **Partners** (on the login page) and taps **Create a partner account** (email and password). Next they fill in their details: partner type (GiZee), name, date of birth (DD/MM/YYYY), mobile, PAN, Aadhaar and an optional address. The page builds the Partner ID from the first three letters of the name, the last four Aadhaar digits and the sign-up date (DDMMYY), like `RAV-1234-071026`; `partnerIds/{id}` records which partner holds each ID, so a taken ID gets `-2`, `-3` and so on. Only the last four Aadhaar digits are saved.
 
-Enrolling creates the partner's sign-in and emails them a link to set their password. Their record is at `partners/{uid}`, readable only by the super admin and the partner. Once the super admin approves their KYC, the partner can enroll sellers from the same page, with a discount in rupees off the ₹100 monthly fee. Those sellers land in `sellers` as Pending KYC with `partnerId` and `feeDiscount`, and the partner can see the sellers they enrolled.
+Their record is at `partners/{uid}`, readable only by the super admin and the partner. Until it's approved the partner can edit their details (not the Aadhaar, Partner ID or email); saving after a rejection sends it back for review. The super admin approves or rejects on the Partners page or in the console's **Partners KYC** tab. Once approved, the partner can enroll sellers with a discount in rupees off the ₹100 monthly fee. Those sellers land in `sellers` as Pending KYC with `partnerId` and `feeDiscount`, and the partner can see the sellers they enrolled.
 
 ## Run it locally
 

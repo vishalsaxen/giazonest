@@ -39,8 +39,8 @@ export function wirePartnerReview({ db, auth, partners, sellersOf, onSaved }) {
     $("#pk-status").textContent = p.status;
     $("#pk-status").className = "chip " + (chip[p.status] || "warn");
     $("#pk-sub").textContent = `${p.type} partner`;
-    const facts = [["Partner ID", p.partnerId], ["Mobile", p.mobile], ["PAN", p.pan], ["Aadhaar", `XXXX XXXX ${p.aadhaarLast4}`],
-      ["Email", p.email], ["Address", p.address || "Not given"], ["Enrolled", p.enrolledAt?.toDate?.().toLocaleString("en-IN") || ""]];
+    const facts = [["Partner ID", p.partnerId], ["Date of birth", p.dob || "Not given"], ["Mobile", p.mobile], ["PAN", p.pan], ["Aadhaar", `XXXX XXXX ${p.aadhaarLast4}`],
+      ["Email", p.email], ["Address", p.address || "Not given"], ["Signed up", p.enrolledAt?.toDate?.().toLocaleString("en-IN") || ""]];
     $("#pk-facts").innerHTML = facts.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");
     $("#pk-note").value = p.kycNote || "";
     const mine = sellersOf(p.id);
