@@ -202,10 +202,10 @@ function render() {
   const dist = (d) => anywhere ? "" : fmt(d);
   const rated = (id) => { const x = ratingOf(reviews, id); return x.n ? ` · ${ratingText(x)}` : ""; };
   $("#sellers-list").innerHTML = list(s, sNear, ({ r, d }) =>
-    `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${sellerPicks.picked.has(r.id) ? " checked" : ""}><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · ${placeOf(r)}${countProducts(r.id) ? ` · ${countProducts(r.id)} products` : ""}${rated(r.id)}${r.ownerUid ? " · signed up" : ""}${viaPartner(r)}</span><span class="dist">${dist(d)}</span><span class="row-actions">${resetBtn(r.ownerUid && (r.loginEmail || r.email), r.name)}<button type="button" class="btn ghost small kyc-btn" data-seller="${esc(r.id)}">Review KYC</button></span></li>`);
+    `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${sellerPicks.picked.has(r.id) ? " checked" : ""}><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · ${placeOf(r)}${countProducts(r.id) ? ` · ${countProducts(r.id)} products` : ""}${rated(r.id)}${r.ownerUid ? " · signed up" : ""}${viaPartner(r)}</span><span class="dist">${dist(d)}</span><span class="row-actions"><button type="button" class="btn ghost small kyc-btn" data-seller="${esc(r.id)}">Review KYC</button></span></li>`);
   sellerPicks.sync(sNear.map((x) => x.r.id));
   $("#buyers-list").innerHTML = list(b, bNear, ({ r, d }) =>
-    `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${buyerPicks.picked.has(r.id) ? " checked" : ""}><span class="name">${esc(r.name)}</span><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${r.orders || 0} orders · Pin ${esc(r.pin || "not set")}${r.phone ? " · " + esc(r.phone) : ""}</span><span class="dist">${dist(d)}</span><span class="row-actions">${resetBtn(!r.example && r.email, r.name)}</span></li>`);
+    `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${buyerPicks.picked.has(r.id) ? " checked" : ""}><span class="name">${esc(r.name)}</span><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${r.orders || 0} orders · Pin ${esc(r.pin || "not set")}${r.phone ? " · " + esc(r.phone) : ""}</span><span class="dist">${dist(d)}</span></li>`);
   buyerPicks.sync(bNear.map((x) => x.r.id));
   renderKycList();
   renderPartners();
@@ -217,25 +217,6 @@ const viaPartner = (r) => r.partnerId ? ` · via partner ${esc(r.partnerId)}${r.
 // "New Delhi, Delhi · Pin 110001", with the state guessed from the pin when it isn't saved.
 const stateOf = (r) => r.state || stateFromPin(r.pin) || "";
 const placeOf = (r) => [r.city, stateOf(r)].filter(Boolean).map(esc).join(", ") + `${r.city || stateOf(r) ? " · " : ""}Pin ${esc(r.pin || "not set")}`;
-
-// ---------- Password resets
-// Passwords are never visible to anyone. This emails the person a link to choose a new one.
-const resetBtn = (email, name) => email
-  ? `<button type="button" class="btn ghost small" data-reset="${esc(email)}" data-name="${esc(name)}">Send password reset</button>` : "";
-document.addEventListener("click", async (e) => {
-  const b = e.target.closest("[data-reset]");
-  if (!b) return;
-  const email = b.dataset.reset;
-  if (!confirm(`Email ${b.dataset.name} (${email}) a link to set a new password?`)) return;
-  b.disabled = true;
-  try {
-    await sendPasswordResetEmail(auth, email);
-    b.textContent = "Reset link sent ✓";
-  } catch (err) {
-    b.disabled = false;
-    alert(`Couldn't send the reset link to ${email}: ${authError(err)}`);
-  }
-});
 
 // ---------- Partners KYC
 const partnerSellers = (uid) => sellers.filter((r) => r.partnerUid === uid);
