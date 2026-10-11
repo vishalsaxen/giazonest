@@ -36,6 +36,8 @@ const FIELDS = {
   "Food": [quantity, vegNonVeg, shelfLife, { key: "delivery", label: "Home delivery", options: ["Yes", "Pickup only"] }],
   "School & Education": [ageGroup, mode, duration, timings, feeFor],
   "School & Education|Educational Products": [ageGroup, { key: "publisher", label: "Brand / publisher" }, { key: "board", label: "Board", hint: "e.g. CBSE, ICSE" }, { key: "language", label: "Language" }],
+  "Real Estate": [{ key: "dealType", label: "For", options: ["Sale", "Rent", "Lease"] }, { key: "area", label: "Area", hint: "e.g. 650 sq ft" }, { key: "locality", label: "Locality / address" }, { key: "furnishing", label: "Furnishing", options: ["Unfurnished", "Semi-furnished", "Furnished"] }],
+  "Civil Engineering": [{ key: "experience", label: "Experience", hint: "e.g. 10 years" }, { key: "serviceArea", label: "Areas served", hint: "e.g. Pune, Mumbai" }, { key: "qualification", label: "Qualification / licence", hint: "e.g. B.E. Civil, licensed surveyor" }],
   "Other": [brand, size]
 };
 
