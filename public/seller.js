@@ -34,7 +34,7 @@ const show = (el, text, kind) => { el.textContent = text; el.className = "msg " 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const opt = (v, label = v) => { const o = document.createElement("option"); o.value = v; o.textContent = label; return o; };
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MAX_PHOTOS = 10;
+const MAX_PHOTOS = 20;
 const RULES = [
   ["At least 8 characters", (p) => p.length >= 8],
   ["One uppercase letter", (p) => /[A-Z]/.test(p)],
