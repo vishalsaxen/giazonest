@@ -42,12 +42,12 @@ document.querySelectorAll(".rules").forEach((ul) => {
     [...ul.children].forEach((li, i) => li.classList.toggle("met", RULES[i][1](input.value))));
 });
 const authError = (e) => ({
-  "auth/invalid-credential": "That user ID or email and password don't match. Check them or reset your password.",
+  "auth/invalid-credential": "That email and password don't match. Check them or reset your password.",
   "auth/email-already-in-use": "An account with this email already exists. Sign in instead.",
   "auth/too-many-requests": "Too many attempts. Wait a few minutes or reset your password.",
   "auth/network-request-failed": "Can't reach the server. Check your connection and try again.",
   "auth/user-not-found": "No account uses that email.",
-  "auth/invalid-email": "That email doesn't look right. Check for typos, or sign in with your user ID instead.",
+  "auth/invalid-email": "That email doesn't look right. Check for typos.",
   "auth/missing-email": "Enter the email on your account."
 }[e.code] || e.message);
 const km = (a, b) => {
@@ -70,13 +70,14 @@ $("#si-show").onchange = (e) => ($("#si-pass").type = e.target.checked ? "text" 
 $("#signin-form").onsubmit = async (e) => {
   e.preventDefault();
   const id = $("#si-id").value.trim().toLowerCase(), pw = $("#si-pass").value, m = $("#si-msg");
-  if (!id || !pw) return show(m, "Enter your email or user ID, and your password.", "bad");
+  if (!id || !pw) return show(m, "Enter your email and password.", "bad");
   try {
     let email = id;
-    if (id.includes("@") && !EMAIL.test(id)) return show(m, "That email doesn't look right. Check for typos, or sign in with your user ID instead.", "bad");
+    if (id.includes("@") && !EMAIL.test(id)) return show(m, "That email doesn't look right. Check for typos.", "bad");
+    // Accounts made before user IDs were dropped can still sign in with theirs.
     if (!id.includes("@")) {
       const u = await getDoc(doc(db, "usernames", id));
-      if (!u.exists()) return show(m, "No account uses that user ID. Check it, or sign in with your email.", "bad");
+      if (!u.exists()) return show(m, "Sign in with the email on your account.", "bad");
       email = u.data().email;
     }
     await signInWithEmailAndPassword(auth, email, pw);
@@ -87,27 +88,24 @@ $("#signin-form").onsubmit = async (e) => {
 $("#signup-form").onsubmit = async (e) => {
   e.preventDefault();
   const m = $("#su-msg");
-  const name = $("#su-name").value.trim(), user = $("#su-user").value.trim().toLowerCase();
+  const name = $("#su-name").value.trim();
   const phone = $("#su-phone").value.trim(), email = $("#su-email").value.trim().toLowerCase();
   const pin = $("#su-pin").value.trim(), pw = $("#su-pass").value;
   if (!name) return show(m, "Enter your full name.", "bad");
-  if (!/^[a-z0-9_.]{3,20}$/.test(user)) return show(m, "User ID should be 3 to 20 letters, numbers, dots or underscores.", "bad");
   if (!/^[6-9]\d{9}$/.test(phone)) return show(m, "Mobile number should be 10 digits, like 9876543210.", "bad");
   if (!EMAIL.test(email)) return show(m, "That email doesn't look right.", "bad");
   if (email === SUPER_ADMIN_EMAIL.toLowerCase()) return show(m, "This email belongs to the admin account. Use a different email.", "bad");
-  if (pin && !/^[1-9]\d{5}$/.test(pin)) return show(m, "Pin code should be 6 digits.", "bad");
+  if (!/^[1-9]\d{5}$/.test(pin)) return show(m, "Enter your 6-digit pin code.", "bad");
   if (!RULES.every(([, f]) => f(pw))) return show(m, "Your password doesn't meet every rule above.", "bad");
   if (pw !== $("#su-confirm").value) return show(m, "The two passwords don't match.", "bad");
   try {
-    if ((await getDoc(doc(db, "usernames", user))).exists()) return show(m, "That user ID is taken. Try another.", "bad");
     creating = true;
     const cred = await createUserWithEmailAndPassword(auth, email, pw);
     await updateProfile(cred.user, { displayName: name });
     const loc = PINS[pin];
     const batch = writeBatch(db);
-    batch.set(doc(db, "usernames", user), { uid: cred.user.uid, email });
     batch.set(doc(db, "buyers", cred.user.uid), {
-      name, userId: user, email, phone, pin: pin || null,
+      name, email, phone, pin,
       lat: loc ? loc.lat : null, lng: loc ? loc.lng : null,
       orders: 0, status: "New", createdAt: serverTimestamp(),
       termsVersion: TERMS_VERSION, termsAcceptedAt: serverTimestamp()
@@ -117,7 +115,7 @@ $("#signup-form").onsubmit = async (e) => {
     enter(cred.user);
   } catch (err) {
     creating = false;
-    show(m, err.code === "permission-denied" ? "That user ID was just taken. Choose another." : authError(err), "bad");
+    show(m, authError(err), "bad");
   }
 };
 
