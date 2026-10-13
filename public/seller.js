@@ -140,10 +140,10 @@ function showStatus() {
   $("#shop-status").textContent = s || "Not set up";
   $("#shop-status").className = "chip " + (chip[s] || "warn");
   const text = !shop ? "Fill in your shop details and save them. Then you can add products."
-    : s === "Verified" ? "Your KYC is verified. Your shop and in-stock products are visible on the GiaZoNest shop."
+    : s === "Verified" ? "Your KYC is verified. Your approved products are visible on the GiaZoNest shop. New products, and new photos or details on a product, show \"KYC Pending\" until GiaZoNest approves them."
     : s === "KYC Rejected" ? `GiaZoNest couldn't verify your KYC${shop.kycNote ? `: ${shop.kycNote}` : "."} Fix the details below and save to send them again.`
     : s === "Suspended" ? "Your shop is suspended. Contact GiaZoNest to find out why."
-    : "GiaZoNest is checking your KYC. You can add products now; shoppers will see them once you're verified.";
+    : "GiaZoNest is checking your KYC. You can add products now; shoppers will see them once you and each product are approved.";
   show(b, text, s === "Verified" ? "ok" : s === "KYC Rejected" || s === "Suspended" ? "bad" : "");
   // Verified KYC numbers are locked; changing them needs a fresh check by GiaZoNest.
   const locked = s === "Verified" || s === "Suspended";
@@ -223,8 +223,17 @@ async function loadReviews() {
 }
 
 // ---------- Products
-// Products show on the shop only while the seller is verified (publicSellers has their listing).
+// A product shows on the shop only while GiaZoNest has approved it and the seller is
+// verified (publicSellers has their listing). New products, and changes to a product's
+// photos or details, wait for approval as "KYC Pending". Older products count as approved.
 const isLive = async () => (await getDoc(doc(db, "publicSellers", me.uid))).exists();
+const reviewOf = (p) => p.review || "Approved";
+const REVIEW = {
+  "Pending KYC": ["warn", "KYC Pending"],
+  "Rejected": ["bad", "KYC Rejected"],
+  "Approved": ["ok", "Approved"]
+};
+const CONTENT = ["name", "description", "subCategory", "type"];
 
 async function loadProducts() {
   const snap = await getDocs(query(collection(db, "products"), where("sellerId", "==", me.uid)));
@@ -240,10 +249,14 @@ function renderProducts() {
     : "No products yet. Add your first one with photos, price and stock.";
   $("#product-list").innerHTML = products.map((p) => {
     const sp = sellingPrice(p), word = itemWord(p.category, p.subCategory);
+    const [kind, label] = REVIEW[reviewOf(p)] || REVIEW["Pending KYC"];
+    const why = reviewOf(p) === "Pending KYC" ? "Shoppers can't see this product until GiaZoNest approves it."
+      : reviewOf(p) === "Rejected" ? `GiaZoNest didn't approve this product${p.reviewNote ? `: ${p.reviewNote}` : "."} Edit it to send it again.` : "";
     return `<li class="product">
       ${p.thumb ? `<img src="${p.thumb}" alt="" class="product-thumb">` : `<div class="product-thumb empty-thumb">No photo</div>`}
       <div class="product-main">
-        <span class="name">${esc(p.name)}</span>
+        <span class="name">${esc(p.name)} <span class="chip ${kind}">${label}</span></span>
+        ${why ? `<span class="meta">${esc(why)}</span>` : ""}
         <span class="price">${rupees(sp)}${p.discount ? ` <s>${rupees(p.price)}</s> <span class="off">${rupees(p.discount)} off</span>` : ""}</span>
         <span class="meta">${p.stock > 0 ? `${p.stock} ${word}${p.stock === 1 ? "" : "s"} left` : `<b class="out">Out of stock</b>`} · ${p.sold || 0} sold · ${p.photoCount || 0} photo${p.photoCount === 1 ? "" : "s"}</span>
       </div>
@@ -264,7 +277,7 @@ $("#product-list").addEventListener("click", async (e) => {
   if (!p || p.stock < 1) return;
   e.target.disabled = true;
   try {
-    await updateDoc(doc(db, "products", p.id), { stock: increment(-1), sold: increment(1), live: await isLive(), updatedAt: serverTimestamp() });
+    await updateDoc(doc(db, "products", p.id), { stock: increment(-1), sold: increment(1), live: reviewOf(p) === "Approved" && await isLive(), updatedAt: serverTimestamp() });
     p.stock -= 1; p.sold = (p.sold || 0) + 1;
     renderProducts();
   } catch (err) { e.target.disabled = false; alert(`Couldn't update stock: ${err.message}`); }
@@ -273,7 +286,7 @@ $("#product-list").addEventListener("click", async (e) => {
 // Product dialog
 const pd = $("#product-dialog");
 const pSub = $("#pd-sub"), pType = $("#pd-type");
-let editing = null, photos = []; // photos: data URLs, first is the cover
+let editing = null, photos = [], savedPhotos = []; // photos: data URLs, first is the cover
 
 function fillProductTypes(value = "") {
   const types = typesOf(shop.category, pSub.value);
@@ -327,11 +340,15 @@ $("#pd-photos").onchange = async (e) => {
 
 async function openProduct(p = null) {
   editing = p;
-  photos = [];
+  photos = []; savedPhotos = [];
   $("#product-form").reset();
   $("#pd-msg").hidden = true;
   $("#pd-title").textContent = p ? `Edit ${p.name}` : "Add a product";
   $("#pd-delete").hidden = !p;
+  $("#pd-review").textContent = !p ? "GiaZoNest checks every new product before shoppers see it."
+    : reviewOf(p) === "Approved" ? "Changing the photos, name, description or details sends this product for KYC again. Shoppers won't see it until GiaZoNest approves. Price and stock changes go live straight away."
+    : reviewOf(p) === "Rejected" ? `GiaZoNest didn't approve this product${p.reviewNote ? `: ${p.reviewNote}` : "."} Fix it and save to send it for KYC again.`
+    : "KYC Pending: GiaZoNest is checking this product. Shoppers will see it once it's approved.";
   pSub.replaceChildren(opt("", "Select sub-category"), ...subsOf(shop.category).map((x) => opt(x)));
   pSub.value = p?.subCategory || shop.subCategory || "";
   fillProductTypes(p?.type || (pSub.value === shop.subCategory ? shop.type || "" : ""));
@@ -349,13 +366,14 @@ async function openProduct(p = null) {
   $("#pd-name").focus();
   if (p?.photoCount) {
     $("#pd-photo-count").textContent = "Loading photos…";
-    const snap = await getDocs(query(collection(db, "productImages"), where("productId", "==", p.id)));
+    const snap = await getDocs(query(collection(db, "productImages"), where("sellerId", "==", me.uid), where("productId", "==", p.id)));
     if (editing !== p) return;
     photos = snap.docs.map((d) => d.data()).sort((a, b) => a.n - b.n).map((x) => x.data);
+    savedPhotos = [...photos];
     renderPhotos();
   }
 }
-const closeProduct = () => { pd.hidden = true; editing = null; photos = []; };
+const closeProduct = () => { pd.hidden = true; editing = null; photos = []; savedPhotos = []; };
 $("#add-product").onclick = () => openProduct();
 $("#pd-cancel").onclick = closeProduct;
 pd.addEventListener("keydown", (e) => { if (e.key === "Escape") closeProduct(); });
@@ -375,23 +393,31 @@ $("#product-form").onsubmit = async (e) => {
   show(m, "Saving…", "");
   try {
     const ref = editing ? doc(db, "products", editing.id) : doc(collection(db, "products"));
+    const photosChanged = !editing || photos.length !== savedPhotos.length || photos.some((src, i) => src !== savedPhotos[i]);
     const data = {
       sellerId: me.uid, sellerName: shop.name, name, category: shop.category, subCategory, type: type || null,
       details: readFields(), description: $("#pd-desc").value.trim(),
       price: Math.round(price * 100) / 100, discount: Math.round(discount * 100) / 100, stock,
-      photoCount: photos.length, thumb: photos[0] ? await thumb(photos[0]) : null,
-      live: await isLive(), updatedAt: serverTimestamp()
+      photoCount: photos.length, thumb: photosChanged ? (photos[0] ? await thumb(photos[0]) : null) : editing.thumb ?? null,
+      updatedAt: serverTimestamp()
     };
+    // New photos or details go back to GiaZoNest for KYC; price and stock changes don't.
+    const contentChanged = photosChanged || CONTENT.some((k) => (data[k] ?? "") !== (editing[k] ?? ""))
+      || JSON.stringify(data.details) !== JSON.stringify(editing.details || {});
+    if (contentChanged) data.review = "Pending KYC";
+    data.live = (data.review || reviewOf(editing)) === "Approved" && await isLive();
     if (!editing) Object.assign(data, { sold: 0, createdAt: serverTimestamp() });
     // Each photo is its own document (productImages/{product}_{n}); the first is the cover.
     const batch = writeBatch(db);
     if (editing) {
-      // Photos beyond the new count are removed; the rest are overwritten below.
-      const old = await getDocs(query(collection(db, "productImages"), where("productId", "==", ref.id)));
-      old.docs.filter((d) => d.data().n >= photos.length).forEach((d) => batch.delete(d.ref));
       batch.update(ref, data);
+      if (photosChanged) {
+        // Photos beyond the new count are removed; the rest are overwritten below.
+        const old = await getDocs(query(collection(db, "productImages"), where("sellerId", "==", me.uid), where("productId", "==", ref.id)));
+        old.docs.filter((d) => d.data().n >= photos.length).forEach((d) => batch.delete(d.ref));
+      }
     } else batch.set(ref, data);
-    photos.forEach((src, n) => batch.set(doc(db, "productImages", `${ref.id}_${n}`), { productId: ref.id, sellerId: me.uid, n, data: src }));
+    if (photosChanged) photos.forEach((src, n) => batch.set(doc(db, "productImages", `${ref.id}_${n}`), { productId: ref.id, sellerId: me.uid, n, data: src }));
     await batch.commit();
     closeProduct();
     await loadProducts();
@@ -403,7 +429,7 @@ $("#pd-delete").onclick = async () => {
   if (!editing || !confirm(`Delete ${editing.name}? This can't be undone.`)) return;
   try {
     const batch = writeBatch(db);
-    const imgs = await getDocs(query(collection(db, "productImages"), where("productId", "==", editing.id)));
+    const imgs = await getDocs(query(collection(db, "productImages"), where("sellerId", "==", me.uid), where("productId", "==", editing.id)));
     imgs.docs.forEach((d) => batch.delete(d.ref));
     batch.delete(doc(db, "products", editing.id));
     await batch.commit();
@@ -421,6 +447,12 @@ async function enter(user) {
   try {
     const snap = await getDoc(doc(db, "sellers", user.uid));
     shop = snap.exists() ? snap.data() : null;
+    // Shopper accounts can't open a shop; sellers need their own account.
+    if (!shop && (await getDoc(doc(db, "buyers", user.uid))).exists()) {
+      await signOut(auth);
+      show($("#si-msg"), "That's a shopper account. To sell on GiaZoNest, create a seller account with a different email.", "bad");
+      return;
+    }
   } catch (err) {
     show($("#status-banner"), `Couldn't load your shop: ${err.message}`, "bad");
     return;

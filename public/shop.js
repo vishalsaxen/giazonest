@@ -268,7 +268,14 @@ async function enter(user) {
   $("#who-name").textContent = `Hello, ${user.displayName || user.email}`;
   $("#results").innerHTML = `<li class="empty">Loading sellers…</li>`;
   try {
-    const [pub, mine, prods] = await Promise.all([getDocs(collection(db, "publicSellers")), getDoc(doc(db, "buyers", user.uid)),
+    // The shop is for shoppers only: seller and partner accounts have no buyers/{uid} profile.
+    const mine = await getDoc(doc(db, "buyers", user.uid));
+    if (!mine.exists()) {
+      await signOut(auth);
+      show($("#si-msg"), "This isn't a shopper account. Sellers manage their own products on the seller page; to shop, create a shopper account with a different email.", "bad");
+      return;
+    }
+    const [pub, prods] = await Promise.all([getDocs(collection(db, "publicSellers")),
       getDocs(query(collection(db, "products"), where("live", "==", true)))]);
     reviews = (await getDocs(collection(db, "reviews")).catch(() => ({ docs: [] }))).docs.map((d) => ({ id: d.id, ...d.data() }));
     sellers = pub.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -344,9 +351,10 @@ $("#product-results").addEventListener("click", async (e) => {
   $("#pv-close").focus();
   if (!p.photoCount) return;
   try {
-    const snap = await getDocs(query(collection(db, "productImages"), where("productId", "==", p.id)));
+    // Photos are read one by one (productImages/{product}_{n}), so only a live product's photos open.
+    const snaps = await Promise.all(Array.from({ length: p.photoCount }, (_, n) => getDoc(doc(db, "productImages", `${p.id}_${n}`)).catch(() => null)));
     if (viewing !== p) return;
-    const srcs = snap.docs.map((d) => d.data()).sort((a, b) => a.n - b.n).map((x) => x.data);
+    const srcs = snaps.filter((d) => d?.exists()).map((d) => d.data().data);
     if (srcs[0]) photo.src = srcs[0];
     $("#pv-strip").innerHTML = srcs.length > 1 ? srcs.map((src, i) => `<li><button type="button" data-src="${src}" aria-label="Photo ${i + 1}"><img src="${src}" alt=""></button></li>`).join("") : "";
   } catch { /* the cover thumbnail is still shown */ }

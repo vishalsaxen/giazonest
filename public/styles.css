@@ -184,6 +184,7 @@ label.na { flex-direction: row; align-items: center; gap: 6px; font-weight: 500;
 .empty-thumb { display: grid; place-items: center; font-size: .68rem; color: var(--muted); background: var(--soft); text-align: center; }
 .product-main { display: flex; flex-direction: column; gap: 3px; flex: 1 1 200px; min-width: 0; }
 .product .name, .product-card .name { font-weight: 700; overflow-wrap: anywhere; }
+.product .name .chip { display: inline-block; margin-left: 4px; vertical-align: 1px; }
 .product .meta, .product-card .meta { font-size: .82rem; color: var(--muted); overflow-wrap: anywhere; }
 .product-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .products.compact .product-thumb { width: 48px; height: 48px; }

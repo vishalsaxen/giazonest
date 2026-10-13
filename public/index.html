@@ -378,7 +378,11 @@
         <input id="kyc-note" type="text" maxlength="300" placeholder="e.g. PAN name doesn't match the shop owner">
       </label>
       <div class="stack" style="gap:8px" id="kyc-products-box">
-        <h3 class="mini-h">Products <span class="count" id="kyc-product-count">0</span></h3>
+        <div class="row">
+          <h3 class="mini-h">Products <span class="count" id="kyc-product-count">0</span> <span class="hint" id="kyc-product-pending"></span></h3>
+          <button type="button" class="btn ghost small" id="kyc-approve-products" hidden>Approve all pending</button>
+        </div>
+        <p class="hint">New products, and new photos or details on a product, wait here as KYC Pending. Shoppers see a product only after you approve it and while the seller is verified.</p>
         <ul class="products compact" id="kyc-products"></ul>
       </div>
       <div class="stack" style="gap:8px">

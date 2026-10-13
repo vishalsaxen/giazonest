@@ -155,7 +155,7 @@ async function commitAll(ops) {
 }
 
 // Shoppers only see the publicSellers collection (Verified sellers, without KYC details)
-// and products marked live, which are the products of Verified sellers.
+// and products marked live: approved products of Verified sellers.
 async function syncPublic() {
   const pub = await getDocs(collection(db, "publicSellers"));
   const stable = (o) => JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));
@@ -171,7 +171,7 @@ async function syncPublic() {
   }
   for (const id of have.keys()) ops.push((b) => b.delete(doc(db, "publicSellers", id)));
   for (const p of products) {
-    const live = verified.has(p.sellerId);
+    const live = verified.has(p.sellerId) && reviewOf(p) === "Approved";
     if (p.live !== live) { ops.push((b) => b.update(doc(db, "products", p.id), { live })); p.live = live; }
   }
   await commitAll(ops);
@@ -179,6 +179,11 @@ async function syncPublic() {
 
 const fieldLabel = (p, key) => fieldsFor(p.category, p.subCategory).find((f) => f.key === key)?.label || key;
 const countProducts = (sellerId) => products.filter((p) => p.sellerId === sellerId).length;
+// Product KYC: new products and changed photos or details are "Pending KYC" until approved.
+// Products saved before this check have no review and count as approved.
+const reviewOf = (p) => p.review || "Approved";
+const pendingProducts = (sellerId) => products.filter((p) => (!sellerId || p.sellerId === sellerId) && reviewOf(p) === "Pending KYC");
+const REVIEW_CHIP = { "Pending KYC": ["warn", "KYC Pending"], "Rejected": ["bad", "Rejected"], "Approved": ["ok", "Approved"] };
 
 function render() {
   const { origin, label, pin } = current;
@@ -194,7 +199,7 @@ function render() {
   const scope = anywhere ? "in total" : `within ${RADIUS} km`;
   $("#sellers-count").textContent = sNear.length;
   $("#buyers-count").textContent = bNear.length;
-  $("#seller-stats").innerHTML = stat(sNear.length, scope) + stat(sNear.filter((x) => x.r.status === "Verified").length, "verified") + stat(sNear.filter((x) => x.r.status !== "Verified").length, "need review");
+  $("#seller-stats").innerHTML = stat(sNear.length, scope) + stat(sNear.filter((x) => x.r.status === "Verified").length, "verified") + stat(sNear.filter((x) => x.r.status !== "Verified").length, "need review") + stat(pendingProducts().length, "products to review");
   $("#buyer-stats").innerHTML = stat(bNear.length, scope) + stat(bNear.reduce((n, x) => n + (x.r.orders || 0), 0), "orders placed") + stat(bNear.filter((x) => x.r.status === "New").length, "new");
   const list = (all, few, html) => few.length ? few.map(html).join("")
     : anywhere ? `<li class="empty" style="display:block">None yet.</li>`
@@ -202,7 +207,7 @@ function render() {
   const dist = (d) => anywhere ? "" : fmt(d);
   const rated = (id) => { const x = ratingOf(reviews, id); return x.n ? ` · ${ratingText(x)}` : ""; };
   $("#sellers-list").innerHTML = list(s, sNear, ({ r, d }) =>
-    `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${sellerPicks.picked.has(r.id) ? " checked" : ""}><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · ${placeOf(r)}${countProducts(r.id) ? ` · ${countProducts(r.id)} products` : ""}${rated(r.id)}${r.ownerUid ? " · signed up" : ""}${viaPartner(r)}</span><span class="dist">${dist(d)}</span><span class="row-actions"><button type="button" class="btn ghost small kyc-btn" data-seller="${esc(r.id)}">Review KYC</button></span></li>`);
+    `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${sellerPicks.picked.has(r.id) ? " checked" : ""}><button type="button" class="name link-name" data-seller="${esc(r.id)}">${esc(r.name)}</button><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""} · ${placeOf(r)}${countProducts(r.id) ? ` · ${countProducts(r.id)} products` : ""}${pendingProducts(r.id).length ? ` · <b>${pendingProducts(r.id).length} product${pendingProducts(r.id).length === 1 ? "" : "s"} KYC pending</b>` : ""}${rated(r.id)}${r.ownerUid ? " · signed up" : ""}${viaPartner(r)}</span><span class="dist">${dist(d)}</span><span class="row-actions"><button type="button" class="btn ghost small kyc-btn" data-seller="${esc(r.id)}">Review KYC</button></span></li>`);
   sellerPicks.sync(sNear.map((x) => x.r.id));
   $("#buyers-list").innerHTML = list(b, bNear, ({ r, d }) =>
     `<li class="pick"><input type="checkbox" class="pick-box" data-pick="${esc(r.id)}" aria-label="Select ${esc(r.name)}"${buyerPicks.picked.has(r.id) ? " checked" : ""}><span class="name">${esc(r.name)}</span><span class="chip ${chip[r.status] || "warn"}">${esc(r.status)}</span><span class="meta">${r.orders || 0} orders · Pin ${esc(r.pin || "not set")}${r.phone ? " · " + esc(r.phone) : ""}</span><span class="dist">${dist(d)}</span></li>`);
@@ -521,20 +526,77 @@ function openKyc(id) {
   renderKycReviews();
   const when = kycSeller.kycReviewedAt?.toDate?.();
   $("#kyc-review").textContent = when ? `Last reviewed ${when.toLocaleString("en-IN")} by ${kycSeller.kycReviewedBy}.` : "Not reviewed yet.";
-  const mine = products.filter((p) => p.sellerId === kycSeller.id);
+  renderKycProducts();
+  kd.hidden = false; $("#kyc-pan").focus();
+}
+function renderKycProducts() {
+  const order = { "Pending KYC": 0, "Rejected": 1, "Approved": 2 };
+  const mine = products.filter((p) => p.sellerId === kycSeller.id).sort((a, b) => order[reviewOf(a)] - order[reviewOf(b)]);
+  const pending = pendingProducts(kycSeller.id).length;
   $("#kyc-product-count").textContent = mine.length;
-  $("#kyc-products").innerHTML = mine.length ? mine.map((p) => `<li class="product">
+  $("#kyc-product-pending").textContent = pending ? `${pending} KYC pending` : "";
+  $("#kyc-approve-products").hidden = pending < 2;
+  $("#kyc-products").innerHTML = mine.length ? mine.map((p) => {
+    const [kind, label] = REVIEW_CHIP[reviewOf(p)] || REVIEW_CHIP["Pending KYC"];
+    return `<li class="product">
       ${p.thumb ? `<img src="${p.thumb}" alt="" class="product-thumb">` : `<div class="product-thumb empty-thumb">No photo</div>`}
       <div class="product-main">
-        <span class="name">${esc(p.name)}</span>
+        <span class="name">${esc(p.name)} <span class="chip ${kind}">${label}</span></span>
         <span class="price">${rupees(sellingPrice(p))}${p.discount ? ` <s>${rupees(p.price)}</s> <span class="off">${rupees(p.discount)} off</span>` : ""}</span>
         <span class="meta">${esc(p.subCategory || "")}${p.type ? " › " + esc(p.type) : ""} · ${p.stock} ${itemWord(p.category, p.subCategory)}s left · ${p.sold || 0} sold · ${p.photoCount || 0} photos</span>
         ${p.description ? `<span class="meta">${esc(p.description)}</span>` : ""}
         ${Object.keys(p.details || {}).length ? `<span class="meta">${Object.entries(p.details).map(([k, v]) => `${esc(fieldLabel(p, k))}: ${esc(v)}`).join(" · ")}</span>` : ""}
+        ${reviewOf(p) === "Rejected" && p.reviewNote ? `<span class="meta">Rejected: ${esc(p.reviewNote)}</span>` : ""}
+        <ul class="photo-grid" data-photos="${esc(p.id)}" hidden></ul>
       </div>
-    </li>`).join("") : `<li class="empty">${kycSeller.ownerUid ? "No products added yet." : `This seller was added by ${kycSeller.partnerId ? "a partner" : "you"}, so they can't sign in to add products.`}</li>`;
-  kd.hidden = false; $("#kyc-pan").focus();
+      <div class="product-actions">
+        ${p.photoCount ? `<button type="button" class="btn ghost small" data-show-photos="${esc(p.id)}">Photos</button>` : ""}
+        ${reviewOf(p) !== "Approved" ? `<button type="button" class="btn small" data-approve-product="${esc(p.id)}">Approve</button>` : ""}
+        ${reviewOf(p) !== "Rejected" ? `<button type="button" class="btn ghost small danger" data-reject-product="${esc(p.id)}">Reject</button>` : ""}
+      </div>
+    </li>`;
+  }).join("") : `<li class="empty">${kycSeller.ownerUid ? "No products added yet." : `This seller was added by ${kycSeller.partnerId ? "a partner" : "you"}, so they can't sign in to add products.`}</li>`;
 }
+
+// Approve or reject a product's photos and details. Approved products go live while the seller is verified.
+async function reviewProducts(list, review, note = "") {
+  const verified = kycSeller.status === "Verified";
+  const fields = (p) => ({ review, reviewNote: note, live: review === "Approved" && verified,
+    reviewedAt: serverTimestamp(), reviewedBy: auth.currentUser.email });
+  await commitAll(list.map((p) => (b) => b.update(doc(db, "products", p.id), fields(p))));
+  list.forEach((p) => Object.assign(p, { review, reviewNote: note, live: review === "Approved" && verified }));
+  renderKycProducts();
+  render();
+}
+$("#kyc-products").addEventListener("click", async (e) => {
+  const m = $("#kyc-msg"), btn = e.target.closest("button");
+  if (!btn) return;
+  const { showPhotos, approveProduct, rejectProduct } = btn.dataset;
+  const p = products.find((x) => x.id === (showPhotos || approveProduct || rejectProduct));
+  if (!p) return;
+  btn.disabled = true;
+  try {
+    if (showPhotos) {
+      const grid = $("#kyc-products").querySelector(`[data-photos="${CSS.escape(p.id)}"]`);
+      if (!grid.hidden) { grid.hidden = true; return; }
+      const snap = await getDocs(query(collection(db, "productImages"), where("productId", "==", p.id)));
+      grid.innerHTML = snap.docs.map((d) => d.data()).sort((a, b) => a.n - b.n)
+        .map((x, i) => `<li><img src="${x.data}" alt="Photo ${i + 1} of ${esc(p.name)}"></li>`).join("") || `<li class="empty">No photos.</li>`;
+      grid.hidden = false;
+    } else if (approveProduct) await reviewProducts([p], "Approved");
+    else {
+      const note = prompt(`Why isn't "${p.name}" approved? The seller sees this note.`);
+      if (note === null) return;
+      if (!note.trim()) return show(m, "Write a reason so the seller knows what to fix.", "bad");
+      await reviewProducts([p], "Rejected", note.trim().slice(0, 300));
+    }
+  } catch (err) { show(m, `Couldn't update the product: ${err.message}`, "bad"); }
+  finally { btn.disabled = false; }
+});
+$("#kyc-approve-products").onclick = async () => {
+  try { await reviewProducts(pendingProducts(kycSeller.id), "Approved"); }
+  catch (err) { show($("#kyc-msg"), `Couldn't approve the products: ${err.message}`, "bad"); }
+};
 $("#kyc-cancel").onclick = closeKyc;
 kd.addEventListener("keydown", (e) => { if (e.key === "Escape") closeKyc(); });
 
