@@ -12,7 +12,7 @@ import { PINS, EXAMPLE_SELLERS, EXAMPLE_BUYERS } from "./pincodes.js?v=dev";
 import { CATEGORIES, subsOf, typesOf } from "./categories.js?v=dev";
 import { checkContact, publicSeller } from "./contacts.js?v=dev";
 import { checkKyc, readKyc, fillKyc, wireKycSkips } from "./kyc.js?v=dev";
-import { sellingPrice, rupees, itemWord, fieldsFor } from "./product-fields.js?v=dev";
+import { sellingPrice, rupees, itemWord, fieldsFor, reviewOf } from "./product-fields.js?v=dev";
 import { fillStates, autofillFromPin, stateFromPin, lookupPin } from "./places.js?v=dev";
 import { ratingOf, ratingText, starString } from "./ratings.js?v=dev";
 import { partnerRows, partnerStats, wirePartnerReview } from "./partner-review.js?v=dev";
@@ -155,7 +155,7 @@ async function commitAll(ops) {
 }
 
 // Shoppers only see the publicSellers collection (Verified sellers, without KYC details)
-// and products marked live, which are the products of Verified sellers.
+// and products marked live: approved products of Verified sellers.
 async function syncPublic() {
   const pub = await getDocs(collection(db, "publicSellers"));
   const stable = (o) => JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));
@@ -171,7 +171,7 @@ async function syncPublic() {
   }
   for (const id of have.keys()) ops.push((b) => b.delete(doc(db, "publicSellers", id)));
   for (const p of products) {
-    const live = verified.has(p.sellerId);
+    const live = verified.has(p.sellerId) && reviewOf(p) === "Approved";
     if (p.live !== live) { ops.push((b) => b.update(doc(db, "products", p.id), { live })); p.live = live; }
   }
   await commitAll(ops);
@@ -209,6 +209,7 @@ function render() {
   buyerPicks.sync(bNear.map((x) => x.r.id));
   renderKycList();
   renderPartners();
+  renderProductReview();
 }
 
 // " · via partner VIS-1234-051026, ₹20 off fee" for sellers a partner enrolled.
@@ -230,6 +231,71 @@ const partnerReview = wirePartnerReview({ db, auth, partners: () => partners, se
 $("#partners-list").addEventListener("click", (e) => {
   const id = e.target.closest("[data-partner]")?.dataset.partner;
   if (id) partnerReview.open(id);
+});
+
+// ---------- Product review: approve or reject new and edited products
+const reviewChip = { Approved: ["ok", "Approved"], Pending: ["warn", "KYC Pending"], Rejected: ["bad", "Not approved"] };
+const productChip = (p) => { const [k, t] = reviewChip[reviewOf(p)] || reviewChip.Pending; return `<span class="chip ${k}">${t}</span>`; };
+function renderProductReview() {
+  const byId = new Map(sellers.map((r) => [r.id, r]));
+  const waiting = products.filter((p) => reviewOf(p) === "Pending")
+    .sort((a, b) => (a.updatedAt?.seconds || 0) - (b.updatedAt?.seconds || 0));
+  $("#product-pending-count").textContent = waiting.length;
+  $("#pr-count").textContent = waiting.length;
+  $("#pr-list").innerHTML = waiting.length ? waiting.map((p) => {
+    const s = byId.get(p.sellerId) || {};
+    return `<li class="product" data-review="${esc(p.id)}">
+      ${p.thumb ? `<img src="${p.thumb}" alt="" class="product-thumb">` : `<div class="product-thumb empty-thumb">No photo</div>`}
+      <div class="product-main">
+        <span class="name">${esc(p.name)}</span>
+        <span class="meta">Seller: ${esc(s.name || p.sellerName || "Unknown")} <span class="chip ${chip[s.status] || "warn"}">${esc(s.status || "No shop")}</span></span>
+        <span class="price">${rupees(sellingPrice(p))}${p.discount ? ` <s>${rupees(p.price)}</s> <span class="off">${rupees(p.discount)} off</span>` : ""}</span>
+        <span class="meta">${esc(p.subCategory || "")}${p.type ? " › " + esc(p.type) : ""} · ${p.stock} ${itemWord(p.category, p.subCategory)}s · ${p.photoCount || 0} photos${p.updatedAt?.toDate ? ` · saved ${p.updatedAt.toDate().toLocaleString("en-IN")}` : ""}</span>
+        ${p.description ? `<span class="meta">${esc(p.description)}</span>` : ""}
+        ${Object.keys(p.details || {}).length ? `<span class="meta">${Object.entries(p.details).map(([k, v]) => `${esc(fieldLabel(p, k))}: ${esc(v)}`).join(" · ")}</span>` : ""}
+        <ul class="photo-grid" data-photos="${esc(p.id)}" hidden></ul>
+        <input type="text" maxlength="300" class="pr-note" placeholder="Reason, if you don't approve it" aria-label="Reason for ${esc(p.name)}">
+        <span class="msg" hidden></span>
+      </div>
+      <div class="product-actions">
+        ${p.photoCount ? `<button type="button" class="btn ghost small" data-pr="photos">Photos</button>` : ""}
+        <button type="button" class="btn small" data-pr="approve">Approve</button>
+        <button type="button" class="btn ghost small danger" data-pr="reject">Reject</button>
+      </div>
+    </li>`;
+  }).join("") : `<li class="empty">Nothing waiting. New or edited products from sellers show up here.</li>`;
+}
+$("#pr-list").addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-pr]"), li = e.target.closest("[data-review]");
+  if (!btn || !li) return;
+  const p = products.find((x) => x.id === li.dataset.review), m = li.querySelector(".msg");
+  if (!p) return;
+  if (btn.dataset.pr === "photos") {
+    const ul = li.querySelector("[data-photos]");
+    if (!ul.hidden) { ul.hidden = true; return; }
+    try {
+      const snap = await getDocs(query(collection(db, "productImages"), where("productId", "==", p.id)));
+      ul.innerHTML = snap.docs.map((d) => d.data()).sort((a, b) => a.n - b.n)
+        .map((x, i) => `<li><img src="${x.data}" alt="Photo ${i + 1} of ${esc(p.name)}"></li>`).join("");
+      ul.hidden = false;
+    } catch (err) { show(m, `Couldn't load photos: ${err.message}`, "bad"); }
+    return;
+  }
+  const approve = btn.dataset.pr === "approve", note = li.querySelector(".pr-note").value.trim();
+  if (!approve && !note) return show(m, "Write a reason so the seller knows what to fix.", "bad");
+  li.querySelectorAll("button").forEach((b) => (b.disabled = true));
+  try {
+    const seller = sellers.find((r) => r.id === p.sellerId);
+    await updateDoc(doc(db, "products", p.id), {
+      review: approve ? "Approved" : "Rejected", reviewNote: approve ? "" : note,
+      live: approve && seller?.status === "Verified",
+      reviewedAt: serverTimestamp(), reviewedBy: auth.currentUser.email
+    });
+    await load();
+  } catch (err) {
+    li.querySelectorAll("button").forEach((b) => (b.disabled = false));
+    show(m, `Couldn't save: ${err.message}`, "bad");
+  }
 });
 
 // ---------- Tabs
@@ -526,7 +592,7 @@ function openKyc(id) {
   $("#kyc-products").innerHTML = mine.length ? mine.map((p) => `<li class="product">
       ${p.thumb ? `<img src="${p.thumb}" alt="" class="product-thumb">` : `<div class="product-thumb empty-thumb">No photo</div>`}
       <div class="product-main">
-        <span class="name">${esc(p.name)}</span>
+        <span class="name">${esc(p.name)}</span> ${productChip(p)}
         <span class="price">${rupees(sellingPrice(p))}${p.discount ? ` <s>${rupees(p.price)}</s> <span class="off">${rupees(p.discount)} off</span>` : ""}</span>
         <span class="meta">${esc(p.subCategory || "")}${p.type ? " › " + esc(p.type) : ""} · ${p.stock} ${itemWord(p.category, p.subCategory)}s left · ${p.sold || 0} sold · ${p.photoCount || 0} photos</span>
         ${p.description ? `<span class="meta">${esc(p.description)}</span>` : ""}
@@ -556,6 +622,13 @@ async function saveKyc(action) {
   });
   try {
     await updateDoc(doc(db, "sellers", kycSeller.id), update);
+    // Approving KYC also approves the products the seller added before it (they're listed in this window).
+    // Anything added or edited after approval waits in Product review.
+    if (action === "approve") {
+      const ops = products.filter((p) => p.sellerId === kycSeller.id && reviewOf(p) === "Pending").map((p) => (b) => b.update(doc(db, "products", p.id),
+        { review: "Approved", reviewNote: "", reviewedAt: serverTimestamp(), reviewedBy: auth.currentUser.email }));
+      await commitAll(ops);
+    }
     closeKyc();
     await load();
   } catch (err) { show(m, `Couldn't save: ${err.message}`, "bad"); }

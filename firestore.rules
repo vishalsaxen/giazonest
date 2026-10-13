@@ -13,6 +13,10 @@ service cloud.firestore {
     function isOwner(uid) {
       return signedIn() && request.auth.uid == uid;
     }
+    // Shoppers have a profile at buyers/{uid}. Seller and partner accounts don't.
+    function isBuyer() {
+      return signedIn() && exists(/databases/$(database)/documents/buyers/$(request.auth.uid));
+    }
     function changed() {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
@@ -90,14 +94,20 @@ service cloud.firestore {
         && request.resource.data.uid == request.auth.uid
         && getAfter(/databases/$(database)/documents/partners/$(request.auth.uid)).data.partnerId == pid;
     }
-    // KYC-verified sellers without KYC numbers. Signed-in shoppers can read;
-    // the admin console keeps this in sync.
+    // KYC-verified sellers without KYC numbers. Shoppers can read; a seller
+    // can check their own listing. The admin console keeps this in sync.
     match /publicSellers/{id} {
-      allow read: if signedIn();
+      allow read: if isBuyer();
+      allow get: if isOwner(id);
       allow write: if isSuperAdmin();
     }
-    // Products. Shoppers see only live ones (sellers who are verified).
-    // A seller can only mark a product live while their shop is verified.
+    // Products. Shoppers see only live ones: the seller is verified and GiaZoNest
+    // approved the product. Each new or edited product (details or photos) waits
+    // in review ("Pending") until the super admin approves it. Products saved
+    // before reviews existed have no review field and count as approved.
+    function reviewOf(p) {
+      return p.get('review', 'Approved');
+    }
     function validProduct() {
       let p = request.resource.data;
       return p.sellerId == request.auth.uid
@@ -106,23 +116,36 @@ service cloud.firestore {
         && p.discount is number && p.discount >= 0 && p.discount <= p.price
         && p.stock is int && p.stock >= 0
         && p.sold is int && p.sold >= 0
-        && p.live == exists(/databases/$(database)/documents/publicSellers/$(request.auth.uid));
+        && p.live == (reviewOf(p) == 'Approved'
+          && exists(/databases/$(database)/documents/publicSellers/$(request.auth.uid)));
     }
     match /products/{pid} {
       allow read, write: if isSuperAdmin();
-      allow read: if signedIn() && (resource.data.live == true || resource.data.sellerId == request.auth.uid);
-      allow create: if signedIn() && validProduct();
-      allow update: if signedIn() && resource.data.sellerId == request.auth.uid && validProduct();
+      allow read: if signedIn() && resource.data.sellerId == request.auth.uid;
+      allow read: if isBuyer() && resource.data.live == true;
+      allow create: if signedIn() && validProduct()
+        && request.resource.data.review == 'Pending'
+        && !request.resource.data.keys().hasAny(['reviewedAt', 'reviewedBy', 'reviewNote']);
+      // Selling one (stock and sold counts) keeps the review; any other change goes back to review.
+      allow update: if signedIn() && resource.data.sellerId == request.auth.uid && validProduct()
+        && !changed().hasAny(['reviewedAt', 'reviewedBy', 'reviewNote'])
+        && (changed().hasOnly(['stock', 'sold', 'live', 'updatedAt'])
+            || request.resource.data.review == 'Pending');
       allow delete: if signedIn() && resource.data.sellerId == request.auth.uid;
     }
-    // Product photos, one per document, shrunk in the browser.
+    // Product photos, one per document, shrunk in the browser. A seller can add
+    // or replace photos only on a product that is waiting for review.
     match /productImages/{iid} {
-      allow read: if signedIn();
+      allow read: if isSuperAdmin() || isBuyer()
+        || (signedIn() && resource.data.sellerId == request.auth.uid);
       allow write: if isSuperAdmin();
       function validPhoto() {
+        let product = getAfter(/databases/$(database)/documents/products/$(request.resource.data.productId)).data;
         return request.resource.data.sellerId == request.auth.uid
           && request.resource.data.data is string
-          && request.resource.data.data.size() < 400000;
+          && request.resource.data.data.size() < 400000
+          && product.sellerId == request.auth.uid
+          && product.review == 'Pending';
       }
       allow create: if signedIn() && validPhoto();
       allow update: if signedIn() && resource.data.sellerId == request.auth.uid && validPhoto();

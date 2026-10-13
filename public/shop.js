@@ -268,7 +268,18 @@ async function enter(user) {
   $("#who-name").textContent = `Hello, ${user.displayName || user.email}`;
   $("#results").innerHTML = `<li class="empty">Loading sellers…</li>`;
   try {
-    const [pub, mine, prods] = await Promise.all([getDocs(collection(db, "publicSellers")), getDoc(doc(db, "buyers", user.uid)),
+    // Only shoppers (accounts with a buyers profile) can browse. Seller and partner
+    // accounts are turned away, so sellers never see other sellers' products.
+    const mine = await getDoc(doc(db, "buyers", user.uid));
+    if (!mine.exists()) {
+      const isSeller = await getDoc(doc(db, "sellers", user.uid)).then((d) => d.exists()).catch(() => false);
+      await signOut(auth);
+      show($("#si-msg"), isSeller
+        ? "This is a seller account. Products on the shop are for shoppers only. Manage your own products on the Sellers page, or create a shopper account with a different email."
+        : "This account isn't a shopper account. Create a shopper account to browse the shop.", "bad");
+      return;
+    }
+    const [pub, prods] = await Promise.all([getDocs(collection(db, "publicSellers")),
       getDocs(query(collection(db, "products"), where("live", "==", true)))]);
     reviews = (await getDocs(collection(db, "reviews")).catch(() => ({ docs: [] }))).docs.map((d) => ({ id: d.id, ...d.data() }));
     sellers = pub.docs.map((d) => ({ id: d.id, ...d.data() }));

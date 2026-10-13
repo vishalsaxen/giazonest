@@ -51,3 +51,7 @@ export const itemWord = (cat, sub) => SERVICE(cat, sub) ? "seat" : "item";
 // Price after discount, and rupee formatting.
 export const sellingPrice = (p) => Math.max(0, (Number(p.price) || 0) - (Number(p.discount) || 0));
 export const rupees = (n) => "₹" + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+
+// GiaZoNest reviews every new or edited product before shoppers see it.
+// Products saved before reviews existed have no review field and count as approved.
+export const reviewOf = (p) => p.review || "Approved";
