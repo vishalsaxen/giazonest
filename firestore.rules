@@ -16,6 +16,13 @@ service cloud.firestore {
     function changed() {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
+    // Shoppers have a profile at buyers/{uid}. Only they see the shop's sellers and products.
+    function isBuyer() {
+      return signedIn() && exists(/databases/$(database)/documents/buyers/$(request.auth.uid));
+    }
+    function isSeller() {
+      return signedIn() && exists(/databases/$(database)/documents/sellers/$(request.auth.uid));
+    }
     // GiaZoNest partners (GiZee), enrolled by the super admin at partners/{uid}.
     function partner() {
       return get(/databases/$(database)/documents/partners/$(request.auth.uid)).data;
@@ -33,6 +40,7 @@ service cloud.firestore {
       allow read, write: if isSuperAdmin();
       allow get: if isOwner(id);
       allow create: if isOwner(id)
+        && !isBuyer()
         && request.resource.data.status == 'Pending KYC'
         && request.resource.data.ownerUid == request.auth.uid
         && !request.resource.data.keys().hasAny(['kycReviewedAt', 'kycReviewedBy', 'kycNote', 'example']);
@@ -90,14 +98,25 @@ service cloud.firestore {
         && request.resource.data.uid == request.auth.uid
         && getAfter(/databases/$(database)/documents/partners/$(request.auth.uid)).data.partnerId == pid;
     }
-    // KYC-verified sellers without KYC numbers. Signed-in shoppers can read;
-    // the admin console keeps this in sync.
+    // KYC-verified sellers without KYC numbers. Only shoppers can browse them;
+    // a seller can check their own listing. The admin console keeps this in sync.
     match /publicSellers/{id} {
-      allow read: if signedIn();
+      allow read: if isBuyer();
+      allow get: if isOwner(id);
       allow write: if isSuperAdmin();
     }
-    // Products. Shoppers see only live ones (sellers who are verified).
-    // A seller can only mark a product live while their shop is verified.
+    // Products. Shoppers see only live ones; sellers see only their own.
+    // Every new product, and every change to a product's photos or details, is
+    // checked by the super admin: review is 'Pending KYC' until they set it to
+    // 'Approved' or 'Rejected'. Products saved before this check have no review
+    // field and count as approved. A product is live only while it is approved
+    // and its seller is verified.
+    function reviewOf(d) {
+      return d.get('review', 'Approved');
+    }
+    function contentKeys() {
+      return ['name', 'description', 'details', 'category', 'subCategory', 'type', 'photoCount', 'thumb'];
+    }
     function validProduct() {
       let p = request.resource.data;
       return p.sellerId == request.auth.uid
@@ -106,27 +125,48 @@ service cloud.firestore {
         && p.discount is number && p.discount >= 0 && p.discount <= p.price
         && p.stock is int && p.stock >= 0
         && p.sold is int && p.sold >= 0
-        && p.live == exists(/databases/$(database)/documents/publicSellers/$(request.auth.uid));
+        && p.live == (reviewOf(p) == 'Approved'
+          && exists(/databases/$(database)/documents/publicSellers/$(request.auth.uid)));
     }
     match /products/{pid} {
       allow read, write: if isSuperAdmin();
-      allow read: if signedIn() && (resource.data.live == true || resource.data.sellerId == request.auth.uid);
-      allow create: if signedIn() && validProduct();
-      allow update: if signedIn() && resource.data.sellerId == request.auth.uid && validProduct();
+      allow read: if signedIn() && resource.data.sellerId == request.auth.uid;
+      allow read: if isBuyer() && resource.data.live == true;
+      allow create: if isSeller() && validProduct()
+        && request.resource.data.review == 'Pending KYC'
+        && !request.resource.data.keys().hasAny(['reviewedAt', 'reviewedBy', 'reviewNote']);
+      // Stock and price changes keep the review; new photos or details go back to Pending KYC.
+      allow update: if signedIn() && resource.data.sellerId == request.auth.uid && validProduct()
+        && !changed().hasAny(['sellerId', 'reviewedAt', 'reviewedBy', 'reviewNote'])
+        && (reviewOf(request.resource.data) == 'Pending KYC'
+          || (!changed().hasAny(contentKeys()) && reviewOf(request.resource.data) == reviewOf(resource.data)));
       allow delete: if signedIn() && resource.data.sellerId == request.auth.uid;
     }
-    // Product photos, one per document, shrunk in the browser.
+    // Product photos, one per document (productImages/{product}_{n}), shrunk in the browser.
+    // A shopper can open the photos of a live product only; the seller sees their own.
+    // A seller's photo change sends the product back to Pending KYC in the same write.
     match /productImages/{iid} {
-      allow read: if signedIn();
-      allow write: if isSuperAdmin();
-      function validPhoto() {
-        return request.resource.data.sellerId == request.auth.uid
-          && request.resource.data.data is string
-          && request.resource.data.data.size() < 400000;
+      function productAfter(pid) {
+        return getAfter(/databases/$(database)/documents/products/$(pid)).data;
       }
+      function validPhoto() {
+        let x = request.resource.data;
+        return x.sellerId == request.auth.uid
+          && x.data is string
+          && x.data.size() < 400000
+          && iid == x.productId + '_' + string(x.n)
+          && productAfter(x.productId).sellerId == request.auth.uid
+          && productAfter(x.productId).review == 'Pending KYC';
+      }
+      allow read, write: if isSuperAdmin();
+      allow read: if signedIn() && resource.data.sellerId == request.auth.uid;
+      allow get: if isBuyer()
+        && get(/databases/$(database)/documents/products/$(resource.data.productId)).data.live == true;
       allow create: if signedIn() && validPhoto();
       allow update: if signedIn() && resource.data.sellerId == request.auth.uid && validPhoto();
-      allow delete: if signedIn() && resource.data.sellerId == request.auth.uid;
+      allow delete: if signedIn() && resource.data.sellerId == request.auth.uid
+        && (!existsAfter(/databases/$(database)/documents/products/$(resource.data.productId))
+          || productAfter(resource.data.productId).review == 'Pending KYC');
     }
     // User ID -> email, so shoppers can sign in with their user ID.
     match /usernames/{name} {
@@ -141,6 +181,7 @@ service cloud.firestore {
       allow read, write: if isSuperAdmin();
       allow read: if isOwner(uid);
       allow create: if isOwner(uid)
+        && !isSeller()
         && request.resource.data.status == 'New'
         && request.resource.data.orders == 0;
       allow update: if isOwner(uid)
@@ -148,8 +189,8 @@ service cloud.firestore {
         && request.resource.data.orders == resource.data.orders;
     }
     // Star ratings and optional feedback, one per shopper per seller, kept at
-    // reviews/{sellerId}_{shopper uid}. Signed-in people can read them; a
-    // shopper can write and delete only their own, and only for a verified shop.
+    // reviews/{sellerId}_{shopper uid}. Shoppers can read them, and each seller
+    // can read their own; a shopper can write and delete only their own, and only for a verified shop.
     match /reviews/{rid} {
       function validReview() {
         let r = request.resource.data;
@@ -161,8 +202,8 @@ service cloud.firestore {
           && r.name is string && r.name.size() <= 80
           && exists(/databases/$(database)/documents/publicSellers/$(r.sellerId));
       }
-      allow read: if signedIn();
-      allow create, update: if signedIn() && validReview();
+      allow read: if isBuyer() || (signedIn() && resource.data.sellerId == request.auth.uid);
+      allow create, update: if isBuyer() && validReview();
       allow delete: if isSuperAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
     }
     // Everything else stays closed until a rule opens it.
