@@ -101,6 +101,7 @@
       <button type="button" class="tab" role="tab" id="tab-btn-overview" data-tab="overview" aria-controls="tab-overview" aria-selected="true">Overview</button>
       <button type="button" class="tab" role="tab" id="tab-btn-kyc" data-tab="kyc" aria-controls="tab-kyc" aria-selected="false">KYC list <span class="count" id="kyc-pending-count">0</span></button>
       <button type="button" class="tab" role="tab" id="tab-btn-partners" data-tab="partners" aria-controls="tab-partners" aria-selected="false">Partners KYC <span class="count" id="partner-pending-count">0</span></button>
+      <button type="button" class="tab" role="tab" id="tab-btn-products" data-tab="products" aria-controls="tab-products" aria-selected="false">Product review <span class="count" id="product-pending-count">0</span></button>
     </nav>
 
     <div id="tab-overview" role="tabpanel" aria-labelledby="tab-btn-overview" class="stack">
@@ -157,6 +158,15 @@
       </div>
       <div class="stats" id="partner-stats"></div>
       <ul class="list" id="partners-list"></ul>
+    </section>
+
+    <!-- Product review: new or edited products from sellers, hidden from shoppers until approved -->
+    <section id="tab-products" class="panel" role="tabpanel" aria-labelledby="tab-btn-products" hidden>
+      <div class="panel-head">
+        <h2>Products waiting for review <span class="count" id="pr-count">0</span></h2>
+      </div>
+      <p class="hint">Sellers see "KYC Pending" on these. Shoppers see a product only after you approve it and while its seller is verified.</p>
+      <ul class="products" id="pr-list"></ul>
     </section>
 
     <!-- KYC list: every seller with state, city and pin code -->
