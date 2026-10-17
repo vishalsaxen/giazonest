@@ -1,6 +1,6 @@
 // Partner KYC review, shared by the admin console (index.html) and the Partners page.
 // Both pages carry the same #pk-dialog markup.
-import { doc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, updateDoc, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -26,7 +26,7 @@ export const partnerRows = (partners, sellersOf, empty = "No partners yet. Enrol
   : `<li class="empty" style="display:block">${empty}</li>`;
 
 // Wires the #pk-dialog. partners() and sellersOf(id) read the page's current data;
-// onSaved() runs after an approval or rejection, to reload.
+// onSaved() runs after an approval, rejection or removal, to reload.
 export function wirePartnerReview({ db, auth, partners, sellersOf, onSaved }) {
   const pk = $("#pk-dialog");
   let current = null;
@@ -66,9 +66,25 @@ export function wirePartnerReview({ db, auth, partners, sellersOf, onSaved }) {
       await onSaved();
     } catch (err) { show(m, `Couldn't save: ${err.message}`, "bad"); }
   }
+  // Deletes the partner record and frees their Partner ID. Sellers they enrolled
+  // keep their records, including the partner's ID and fee discount.
+  async function remove() {
+    const p = current, n = sellersOf(p.id).length;
+    const kept = n ? ` The ${n} seller${n === 1 ? "" : "s"} they enrolled will stay.` : "";
+    if (!confirm(`Remove partner ${p.name} (${p.partnerId})? This deletes their partner record and can't be undone.${kept}`)) return;
+    try {
+      const batch = writeBatch(db);
+      batch.delete(doc(db, "partners", p.id));
+      if (p.partnerId) batch.delete(doc(db, "partnerIds", p.partnerId));
+      await batch.commit();
+      close();
+      await onSaved();
+    } catch (err) { show($("#pk-msg"), `Couldn't remove: ${err.message}`, "bad"); }
+  }
   $("#pk-close").onclick = close;
   pk.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
   $("#pk-approve").onclick = () => review(true);
   $("#pk-reject").onclick = () => review(false);
+  $("#pk-remove").onclick = remove;
   return { open };
 }
