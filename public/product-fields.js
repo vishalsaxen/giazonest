@@ -38,15 +38,18 @@ const FIELDS = {
   "School & Education|Educational Products": [ageGroup, { key: "publisher", label: "Brand / publisher" }, { key: "board", label: "Board", hint: "e.g. CBSE, ICSE" }, { key: "language", label: "Language" }],
   "Real Estate": [{ key: "dealType", label: "For", options: ["Sale", "Rent", "Lease"] }, { key: "area", label: "Area", hint: "e.g. 650 sq ft" }, { key: "locality", label: "Locality / address" }, { key: "furnishing", label: "Furnishing", options: ["Unfurnished", "Semi-furnished", "Furnished"] }],
   "Civil Engineering": [{ key: "experience", label: "Experience", hint: "e.g. 10 years" }, { key: "serviceArea", label: "Areas served", hint: "e.g. Pune, Mumbai" }, { key: "qualification", label: "Qualification / licence", hint: "e.g. B.E. Civil, licensed surveyor" }],
+  "Paintings": [{ key: "medium", label: "Medium", hint: "e.g. oil, acrylic, watercolour" }, size, { key: "artist", label: "Artist" }, { key: "framed", label: "Framed", options: ["Framed", "Unframed", "Both available"] }],
+  "Paintings|Painting Mediums": [brand, quantity, colour],
+  "Doctors": [{ key: "qualification", label: "Qualification", hint: "e.g. MBBS, MD" }, { key: "experience", label: "Experience", hint: "e.g. 10 years" }, { key: "clinic", label: "Clinic / hospital and address" }, { key: "timings", label: "Consultation timings", hint: "e.g. Mon–Sat, 10 am–2 pm" }, { key: "consultMode", label: "Consultation", options: ["In clinic", "Online", "Home visit", "In clinic and online"] }],
   "Other": [brand, size]
 };
 
 export const fieldsFor = (cat, sub) => FIELDS[`${cat}|${sub}`] || FIELDS[cat] || [brand];
 
-// Services (classes, gyms) count seats or spots instead of items.
+// Services (classes, gyms) count seats or spots instead of items; doctors count appointments.
 const SERVICE = (cat, sub) => (cat === "School & Education" && sub !== "Educational Products") || (cat === "Sports & Fitness" && sub === "Gym Nearby");
-export const stockLabel = (cat, sub) => SERVICE(cat, sub) ? "Seats available" : "Items in stock";
-export const itemWord = (cat, sub) => SERVICE(cat, sub) ? "seat" : "item";
+export const stockLabel = (cat, sub) => cat === "Doctors" ? "Appointments available" : SERVICE(cat, sub) ? "Seats available" : "Items in stock";
+export const itemWord = (cat, sub) => cat === "Doctors" ? "appointment" : SERVICE(cat, sub) ? "seat" : "item";
 
 // Price after discount, and rupee formatting.
 export const sellingPrice = (p) => Math.max(0, (Number(p.price) || 0) - (Number(p.discount) || 0));
