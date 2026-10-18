@@ -36,6 +36,8 @@ export const CATEGORIES = {
   },
   "Real Estate": ["One BHK", "Two BHK or More", "Office Space", "Retail Space", "Factory", "Godown", "Other"],
   "Civil Engineering": ["Structural Engineering", "Geotechnical Engineering", "Transportation Engineering", "Environmental Engineering", "Water Resources Engineering", "Construction Engineering & Management", "Municipal or Urban Engineering", "Coastal and Marine Engineering", "Materials Science and Engineering", "Surveying", "Other"],
+  "Paintings": ["Traditional & Indian Art", "Modern & Contemporary Art", "Religious & Spiritual Paintings", "Nature & Landscape Paintings", "Portraits & Figurative Art", "Home & Office Wall Art", "Painting Mediums", "Handmade & Specialty Paintings", "Other"],
+  "Doctors": ["General & Primary Care", "Dental Specialists", "Heart & Blood Specialists", "Skin, Hair & Cosmetic Specialists", "Child & Adolescent Care", "Women's Health", "Bone, Joint & Spine Specialists", "Brain & Mental Health", "Digestive System & Liver", "Kidney & Urinary Health", "Eye, Ear, Nose & Throat", "Respiratory & Allergy Care", "Diabetes, Hormones & Metabolism", "Cancer Care", "Rehabilitation & Pain Management", "AYUSH & Alternative Medicine", "Emergency & Critical Care", "Other"],
   "Other": ["Miscellaneous Products", "Other"]
 };
 
