@@ -1,6 +1,8 @@
 // Extra product details asked for in each category. A sub-category entry
 // ("Category|Sub-category") replaces its category's list.
-// A field with `options` shows a dropdown; otherwise a text box.
+// A field with `options` shows a dropdown; otherwise a text box. Every field is
+// optional; `format` and `maxlength` shape a text box as it's typed (formats.js),
+// and `pattern` checks a filled-in value on save, showing `error` if it fails.
 
 const brand = { key: "brand", label: "Brand" };
 const material = { key: "material", label: "Material" };
@@ -10,6 +12,8 @@ const quantity = { key: "quantity", label: "Quantity per item", hint: "e.g. 500 
 const warranty = { key: "warranty", label: "Warranty", hint: "e.g. 1 year" };
 const vegNonVeg = { key: "diet", label: "Veg / non-veg", options: ["Veg", "Non-veg", "Egg", "Vegan"] };
 const shelfLife = { key: "shelfLife", label: "Best before / shelf life", hint: "e.g. 6 months" };
+// Optional FSSAI licence or registration number for food items: 14 digits.
+const fssai = { key: "fssai", label: "FSSAI number", hint: "Optional, 14 digits", format: "digits", maxlength: 14, pattern: /^\d{14}$/, error: "The FSSAI number has 14 digits. Check it or leave it empty." };
 const ageGroup = { key: "ageGroup", label: "Age group / class", hint: "e.g. 5–8 years, Class 6–8" };
 const mode = { key: "mode", label: "Mode", options: ["At our centre", "At student's home", "Online", "Online and offline"] };
 const duration = { key: "duration", label: "Course duration", hint: "e.g. 3 months" };
@@ -22,7 +26,7 @@ const FIELDS = {
   "Electrical & Electronics": [brand, { key: "model", label: "Model" }, { key: "power", label: "Power", hint: "e.g. 9 W" }, warranty],
   "Glass Products": [colour, size, { key: "pieces", label: "Pieces in a set" }, { key: "fragile", label: "Packed for delivery", options: ["Yes", "Pickup only"] }],
   "Beauty & Personal Care": [brand, quantity, { key: "suitedFor", label: "Suited for", hint: "e.g. dry skin, all hair types" }, shelfLife],
-  "Grocery & Daily Needs": [brand, quantity, vegNonVeg, shelfLife],
+  "Grocery & Daily Needs": [brand, quantity, vegNonVeg, shelfLife, fssai],
   "Handicrafts & Handmade": [material, size, colour, { key: "madeIn", label: "Made in / craft", hint: "e.g. Jaipur blue pottery" }],
   "Toys, Kids & Baby": [brand, ageGroup, material, { key: "battery", label: "Batteries", options: ["Not needed", "Included", "Not included"] }],
   "Mobile & Computer": [brand, { key: "model", label: "Model" }, { key: "condition", label: "Condition", options: ["New", "Refurbished", "Used"] }, warranty],
@@ -33,7 +37,7 @@ const FIELDS = {
   "Jewellery & Accessories": [material, colour, { key: "occasion", label: "Occasion", hint: "e.g. wedding, daily wear" }],
   "Jewellery & Accessories|Watches": [brand, { key: "for", label: "For", options: ["Men", "Women", "Kids", "Unisex"] }, { key: "strap", label: "Strap", hint: "e.g. leather, steel" }, warranty],
   "Gifts & Lifestyle": [{ key: "occasion", label: "Occasion", hint: "e.g. birthday, Diwali" }, material, size, { key: "personalised", label: "Can be personalised", options: ["Yes", "No"] }],
-  "Food": [quantity, vegNonVeg, shelfLife, { key: "delivery", label: "Home delivery", options: ["Yes", "Pickup only"] }],
+  "Food": [quantity, vegNonVeg, shelfLife, { key: "delivery", label: "Home delivery", options: ["Yes", "Pickup only"] }, fssai],
   "School & Education": [ageGroup, mode, duration, timings, feeFor],
   "School & Education|Educational Products": [ageGroup, { key: "publisher", label: "Brand / publisher" }, { key: "board", label: "Board", hint: "e.g. CBSE, ICSE" }, { key: "language", label: "Language" }],
   "Real Estate": [{ key: "dealType", label: "For", options: ["Sale", "Rent", "Lease"] }, { key: "area", label: "Area", hint: "e.g. 650 sq ft" }, { key: "locality", label: "Locality / address" }, { key: "furnishing", label: "Furnishing", options: ["Unfurnished", "Semi-furnished", "Furnished"] }],
@@ -55,6 +59,8 @@ export const itemWord = (cat, sub) => cat === "Doctors" ? "appointment" : SERVIC
 export const sellingPrice = (p) => Math.max(0, (Number(p.price) || 0) - (Number(p.discount) || 0));
 export const rupees = (n) => "₹" + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
-// GiaZoNest reviews every new or edited product before shoppers see it.
+// GiaZoNest reviews every new or edited product before shoppers see it. Once a
+// seller's KYC is verified, changing only an approved product's photos (or its
+// stock) keeps the approval.
 // Products saved before reviews existed have no review field and count as approved.
 export const reviewOf = (p) => p.review || "Approved";

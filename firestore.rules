@@ -108,6 +108,12 @@ service cloud.firestore {
     function reviewOf(p) {
       return p.get('review', 'Approved');
     }
+    // A seller whose KYC the super admin has verified.
+    function isVerifiedSeller() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/sellers/$(request.auth.uid))
+        && get(/databases/$(database)/documents/sellers/$(request.auth.uid)).data.status == 'Verified';
+    }
     function validProduct() {
       let p = request.resource.data;
       return p.sellerId == request.auth.uid
@@ -126,15 +132,20 @@ service cloud.firestore {
       allow create: if signedIn() && validProduct()
         && request.resource.data.review == 'Pending'
         && !request.resource.data.keys().hasAny(['reviewedAt', 'reviewedBy', 'reviewNote']);
-      // Selling one (stock and sold counts) keeps the review; any other change goes back to review.
+      // Selling one (stock and sold counts) keeps the review. A verified seller changing
+      // only the photos of an approved product keeps the approval too. Any other change
+      // goes back to review.
       allow update: if signedIn() && resource.data.sellerId == request.auth.uid && validProduct()
         && !changed().hasAny(['reviewedAt', 'reviewedBy', 'reviewNote'])
         && (changed().hasOnly(['stock', 'sold', 'live', 'updatedAt'])
+            || (changed().hasOnly(['stock', 'live', 'updatedAt', 'photoCount', 'thumb'])
+                && reviewOf(resource.data) == 'Approved' && isVerifiedSeller())
             || request.resource.data.review == 'Pending');
       allow delete: if signedIn() && resource.data.sellerId == request.auth.uid;
     }
     // Product photos, one per document, shrunk in the browser. A seller can add
-    // or replace photos only on a product that is waiting for review.
+    // or replace photos on a product that is waiting for review, and, once their
+    // KYC is verified, on an approved product without another review.
     match /productImages/{iid} {
       allow read: if isSuperAdmin() || isBuyer()
         || (signedIn() && resource.data.sellerId == request.auth.uid);
@@ -145,7 +156,8 @@ service cloud.firestore {
           && request.resource.data.data is string
           && request.resource.data.data.size() < 400000
           && product.sellerId == request.auth.uid
-          && product.review == 'Pending';
+          && (reviewOf(product) == 'Pending'
+              || (reviewOf(product) == 'Approved' && isVerifiedSeller()));
       }
       allow create: if signedIn() && validPhoto();
       allow update: if signedIn() && resource.data.sellerId == request.auth.uid && validPhoto();

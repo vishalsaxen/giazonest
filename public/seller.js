@@ -140,7 +140,7 @@ function showStatus() {
   $("#shop-status").textContent = s || "Not set up";
   $("#shop-status").className = "chip " + (chip[s] || "warn");
   const text = !shop ? "Fill in your shop details and save them. Then you can add products."
-    : s === "Verified" ? "Your KYC is verified. Your shop and approved products are visible on the GiaZoNest shop. New or edited products wait for GiaZoNest to approve them."
+    : s === "Verified" ? "Your KYC is verified. Your shop and approved products are visible on the GiaZoNest shop. New or edited products wait for GiaZoNest to approve them; adding or changing photos of an approved product doesn't."
     : s === "KYC Rejected" ? `GiaZoNest couldn't verify your KYC${shop.kycNote ? `: ${shop.kycNote}` : "."} Fix the details below and save to send them again.`
     : s === "Suspended" ? "Your shop is suspended. Contact GiaZoNest to find out why."
     : "GiaZoNest is checking your KYC. You can add products now; shoppers will see them once you're verified.";
@@ -294,7 +294,7 @@ function fillProductFields(details = {}) {
   const fields = fieldsFor(shop.category, pSub.value);
   $("#pd-fields").innerHTML = fields.map((f) => f.options
     ? `<label for="pf-${f.key}">${esc(f.label)}<select id="pf-${f.key}" data-field="${f.key}"><option value="">Choose</option>${f.options.map((o) => `<option${details[f.key] === o ? " selected" : ""}>${esc(o)}</option>`).join("")}</select></label>`
-    : `<label for="pf-${f.key}">${esc(f.label)}<input id="pf-${f.key}" type="text" maxlength="80" data-field="${f.key}" placeholder="${esc(f.hint || "")}" value="${esc(details[f.key] || "")}"></label>`).join("");
+    : `<label for="pf-${f.key}">${esc(f.label)}<input id="pf-${f.key}" type="text" maxlength="${f.maxlength || 80}"${f.format ? ` data-format="${f.format}" inputmode="numeric"` : ""} data-field="${f.key}" placeholder="${esc(f.hint || "")}" value="${esc(details[f.key] || "")}"></label>`).join("");
   $("#pd-stock-label").textContent = stockLabel(shop.category, pSub.value);
 }
 pSub.onchange = () => { fillProductTypes(); fillProductFields(readFields()); };
@@ -364,6 +364,10 @@ async function openProduct(p = null) {
     renderPhotos();
   }
 }
+const sameDetails = (a = {}, b = {}) => {
+  const ka = Object.keys(a || {}).filter((k) => a[k]), kb = Object.keys(b || {}).filter((k) => b[k]);
+  return ka.length === kb.length && ka.every((k) => a[k] === b[k]);
+};
 const closeProduct = () => { pd.hidden = true; editing = null; photos = []; };
 $("#add-product").onclick = () => openProduct();
 $("#pd-cancel").onclick = closeProduct;
@@ -380,21 +384,34 @@ $("#product-form").onsubmit = async (e) => {
   if ($("#pd-price").value === "" || !(price >= 0)) return show(m, "Enter the price in rupees.", "bad");
   if (!(discount >= 0) || discount > price) return show(m, "Discount can't be more than the price.", "bad");
   if ($("#pd-stock").value === "" || !Number.isInteger(stock) || stock < 0) return show(m, `Enter how many ${itemWord(shop.category, subCategory)}s you have, as a whole number.`, "bad");
+  const details = readFields();
+  const badField = fieldsFor(shop.category, subCategory).find((f) => f.pattern && details[f.key] && !f.pattern.test(details[f.key]));
+  if (badField) return show(m, badField.error, "bad");
   $("#pd-save").disabled = true;
   show(m, "Saving…", "");
   try {
     const ref = editing ? doc(db, "products", editing.id) : doc(collection(db, "products"));
     const data = {
       sellerId: me.uid, sellerName: shop.name, name, category: shop.category, subCategory, type: type || null,
-      details: readFields(), description: $("#pd-desc").value.trim(),
+      details, description: $("#pd-desc").value.trim(),
       price: Math.round(price * 100) / 100, discount: Math.round(discount * 100) / 100, stock,
       photoCount: photos.length, thumb: photos[0] ? await thumb(photos[0]) : null,
       // Every save goes back to GiaZoNest for review and stays hidden from shoppers until approved.
       review: "Pending", live: false, updatedAt: serverTimestamp()
     };
+    // Once GiaZoNest has verified the seller's KYC, changing only the photos (or stock)
+    // of an approved product keeps it approved and live, with no second review.
+    const photosOnly = editing && shop.status === "Verified" && reviewOf(editing) === "Approved"
+      && ["sellerName", "name", "subCategory", "type", "description", "price", "discount"].every((k) => (editing[k] ?? null) === (data[k] ?? null))
+      && sameDetails(editing.details, details);
+    if (photosOnly) {
+      delete data.review;
+      data.live = await isLive(editing);
+    }
     if (!editing) Object.assign(data, { sold: 0, createdAt: serverTimestamp() });
     // Each photo is its own document (productImages/{product}_{n}); the first is the cover.
-    // The product is written first in the batch, so the photo rules see it waiting for review.
+    // The product is written first in the batch, so the photo rules see it waiting for review
+    // (or approved, for a verified seller changing only photos).
     const batch = writeBatch(db);
     if (editing) {
       // Photos beyond the new count are removed; the rest are overwritten below.
@@ -406,7 +423,8 @@ $("#product-form").onsubmit = async (e) => {
     await batch.commit();
     closeProduct();
     await loadProducts();
-    if (shop.status === "Verified") show($("#status-banner"), `${name} is saved and waiting for GiaZoNest to approve it. Shoppers will see it once it's approved.`, "");
+    if (photosOnly) show($("#status-banner"), `${name} is saved. Your photo changes are on the shop now.`, "ok");
+    else if (shop.status === "Verified") show($("#status-banner"), `${name} is saved and waiting for GiaZoNest to approve it. Shoppers will see it once it's approved.`, "");
   } catch (err) { show(m, `Couldn't save: ${err.message}`, "bad"); }
   finally { $("#pd-save").disabled = false; }
 };
