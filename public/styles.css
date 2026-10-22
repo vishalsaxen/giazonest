@@ -234,6 +234,9 @@ label.na { flex-direction: row; align-items: center; gap: 6px; font-weight: 500;
 .fee-box { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent); background: color-mix(in srgb, var(--brand) 8%, transparent); overflow-wrap: anywhere; }
 label.agree { flex-direction: row; align-items: flex-start; gap: 10px; font-weight: 600; }
 label.agree input { margin-top: 4px; flex: none; }
+.also-buyer { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.also-buyer .hint { margin: 0 0 0 26px; }
+.also-buyer a { color: var(--brand); font-weight: 600; }
 .site-foot { max-width: 1120px; margin: 28px auto 0; text-align: center; font-size: .85rem; color: var(--muted); overflow-wrap: anywhere; }
 .site-foot a { color: var(--brand); font-weight: 700; }
 
