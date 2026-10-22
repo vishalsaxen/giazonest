@@ -96,9 +96,9 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/partners/$(request.auth.uid)).data.partnerId == pid;
     }
     // KYC-verified sellers without KYC numbers. Shoppers can read; a seller
-    // can check their own listing. The admin console keeps this in sync.
+    // can check their own listing. The admin console reads and keeps this in sync.
     match /publicSellers/{id} {
-      allow read: if isBuyer();
+      allow read: if isSuperAdmin() || isBuyer();
       allow get: if isOwner(id);
       allow write: if isSuperAdmin();
     }
