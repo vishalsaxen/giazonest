@@ -131,7 +131,6 @@ async function load() {
     products = p.docs.map((d) => ({ id: d.id, ...d.data() }));
     reviews = v ? v.docs.map((d) => ({ id: d.id, ...d.data() })) : [];
     partners = pa ? pa.docs.map((d) => ({ id: d.id, ...d.data() })) : [];
-    await syncPublic();
     const hasExamples = [...sellers, ...buyers].some((r) => r.example);
     $("#seed-btn").hidden = !(hasExamples || sellers.length + buyers.length === 0);
     $("#seed-btn").textContent = hasExamples ? "Refresh example data" : "Load example data";
@@ -142,6 +141,14 @@ async function load() {
     fillPlaces();
   } catch (err) {
     $("#data-note").textContent = `Couldn't load data: ${err.message}. Check firestore.rules and the super admin email.`;
+    return;
+  }
+  // Show the lists first, so a failed shop sync can't hide the whole directory.
+  try {
+    await syncPublic();
+    render();
+  } catch (err) {
+    $("#data-note").textContent += ` Couldn't update the shop listings: ${err.message}. Publish the latest firestore.rules.`;
   }
 }
 
