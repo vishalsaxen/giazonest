@@ -4,7 +4,7 @@ import {
   updateProfile, signOut, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, collection, getDocs, getDoc, doc, setDoc, updateDoc, writeBatch, query, where,
+  getFirestore, collection, getDocs, getDoc, doc, setDoc, updateDoc, deleteDoc, writeBatch, query, where,
   serverTimestamp, increment
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig, SUPER_ADMIN_EMAIL } from "./firebase-config.js?v=dev";
@@ -101,7 +101,7 @@ $("#forgot-form").onsubmit = async (e) => {
 $("#sign-out").onclick = () => signOut(auth);
 
 // ---------- Shop details
-let me = null, shop = null, products = [], geo = null;
+let me = null, shop = null, buyer = null, products = [], geo = null;
 const chip = { "Verified": "ok", "Pending KYC": "warn", "Suspended": "bad", "KYC Rejected": "bad" };
 const catSel = $("#sh-cat"), subSel = $("#sh-sub"), typeSel = $("#sh-type");
 Object.keys(CATEGORIES).forEach((c) => catSel.append(opt(c)));
@@ -167,6 +167,26 @@ function fillShop() {
   $("#sh-whatsapp").value = r.whatsapp || "";
   $("#sh-website").value = r.website || "";
   fillKyc("sk-", r.kyc || {});
+  $("#sh-buyer").checked = !!buyer;
+}
+
+// ---------- Shopping as a buyer too
+// Only when the seller ticks the box: a buyers/{uid} profile lets this same login (which the
+// seller may share with family) into the shop. Unticking removes it again.
+async function syncBuyer(data) {
+  const ref = doc(db, "buyers", me.uid);
+  if ($("#sh-buyer").checked && !buyer) {
+    const phone = String(data.whatsapp || "").replace(/\D/g, "").slice(-10);
+    await setDoc(ref, {
+      name: data.owner || data.name, email: me.email, phone: /^[6-9]\d{9}$/.test(phone) ? phone : "",
+      pin: data.pin, lat: data.lat, lng: data.lng,
+      orders: 0, status: "New", fromSeller: true, createdAt: serverTimestamp()
+    });
+    buyer = (await getDoc(ref)).data();
+  } else if (!$("#sh-buyer").checked && buyer) {
+    await deleteDoc(ref);
+    buyer = null;
+  }
 }
 
 $("#shop-form").onsubmit = async (e) => {
@@ -186,7 +206,8 @@ $("#shop-form").onsubmit = async (e) => {
   if (badContact) return show(m, badContact.replace("the seller's", "your"), "bad");
   const loc = geo || (shop?.pin === pin && shop.lat != null ? { lat: shop.lat, lng: shop.lng } : PINS[pin] || null);
   const data = { name, category, subCategory, type: type || null, pin, state, city, ...contact,
-    lat: loc ? loc.lat : null, lng: loc ? loc.lng : null, owner: me.displayName || "", loginEmail: me.email, updatedAt: serverTimestamp() };
+    lat: loc ? loc.lat : null, lng: loc ? loc.lng : null, owner: me.displayName || "", loginEmail: me.email,
+    alsoBuyer: $("#sh-buyer").checked, updatedAt: serverTimestamp() };
   if (shop?.termsVersion !== TERMS_VERSION) Object.assign(data, { termsVersion: TERMS_VERSION, termsAcceptedAt: serverTimestamp() });
   const locked = shop && (shop.status === "Verified" || shop.status === "Suspended");
   if (!locked) {
@@ -206,8 +227,17 @@ $("#shop-form").onsubmit = async (e) => {
     geo = null;
     showStatus();
     show(m, "Saved.", "ok");
-  } catch (err) { show(m, `Couldn't save: ${err.message}`, "bad"); }
-  finally { $("#sh-save").disabled = false; }
+  } catch (err) { $("#sh-save").disabled = false; return show(m, `Couldn't save: ${err.message}`, "bad"); }
+  const wasBuyer = !!buyer;
+  try {
+    await syncBuyer(data);
+    if (!!buyer !== wasBuyer) show(m, buyer
+      ? "Saved. You can now also sign in on the GiaZoNest shop with this email and password to buy."
+      : "Saved. This is a seller-only account again, so it can't sign in on the shop.", "ok");
+  } catch (err) {
+    $("#sh-buyer").checked = wasBuyer;
+    show(m, `Your shop is saved, but the buyer setting couldn't be changed: ${err.message}`, "bad");
+  } finally { $("#sh-save").disabled = false; }
 };
 
 // ---------- Ratings from shoppers
@@ -449,8 +479,9 @@ async function enter(user) {
   $("#seller-view").hidden = false;
   $("#who-name").textContent = user.displayName ? `${user.displayName} · ${user.email}` : user.email;
   try {
-    const snap = await getDoc(doc(db, "sellers", user.uid));
+    const [snap, b] = await Promise.all([getDoc(doc(db, "sellers", user.uid)), getDoc(doc(db, "buyers", user.uid))]);
     shop = snap.exists() ? snap.data() : null;
+    buyer = b.exists() ? b.data() : null;
   } catch (err) {
     show($("#status-banner"), `Couldn't load your shop: ${err.message}`, "bad");
     return;
@@ -479,5 +510,5 @@ onAuthStateChanged(auth, (user) => {
     return;
   }
   if (user) { if (me?.uid !== user.uid) enter(user); }
-  else { me = null; shop = null; $("#seller-view").hidden = true; $("#auth-view").hidden = false; step("step-signin"); }
+  else { me = null; shop = null; buyer = null; $("#seller-view").hidden = true; $("#auth-view").hidden = false; step("step-signin"); }
 });

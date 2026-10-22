@@ -13,7 +13,8 @@ service cloud.firestore {
     function isOwner(uid) {
       return signedIn() && request.auth.uid == uid;
     }
-    // Shoppers have a profile at buyers/{uid}. Seller and partner accounts don't.
+    // Shoppers have a profile at buyers/{uid}. Seller and partner accounts don't,
+    // unless a seller ticked "I also want to shop as a buyer" on the Sellers page.
     function isBuyer() {
       return signedIn() && exists(/databases/$(database)/documents/buyers/$(request.auth.uid));
     }
@@ -181,6 +182,9 @@ service cloud.firestore {
       allow update: if isOwner(uid)
         && request.resource.data.status == resource.data.status
         && request.resource.data.orders == resource.data.orders;
+      // A seller who unticks "I also want to shop as a buyer" removes the profile
+      // that the Sellers page made for them.
+      allow delete: if isOwner(uid) && resource.data.fromSeller == true;
     }
     // Star ratings and optional feedback, one per shopper per seller, kept at
     // reviews/{sellerId}_{shopper uid}. Signed-in people can read them; a

@@ -233,7 +233,7 @@ function render() {
         <span class="meta rating">${ratingText(ratingOf(reviews, r.id))}</span>
       </div>
       <div class="result-actions">
-        <button type="button" class="btn ghost small" data-rate="${esc(r.id)}">${reviews.some((x) => x.sellerId === r.id && x.uid === auth.currentUser?.uid) ? "Edit my rating" : "Rate"}</button>
+        ${r.id === auth.currentUser?.uid ? `<span class="chip">Your shop</span>` : `<button type="button" class="btn ghost small" data-rate="${esc(r.id)}">${reviews.some((x) => x.sellerId === r.id && x.uid === auth.currentUser?.uid) ? "Edit my rating" : "Rate"}</button>`}
         ${r.whatsapp ? `<a class="btn small" href="${whatsappLink(r)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
         ${r.email ? `<a class="btn ghost small" href="mailto:${esc(r.email)}">Email</a>` : ""}
         ${r.website ? `<a class="btn ghost small" href="${esc(r.website)}" target="_blank" rel="noopener">Website</a>` : ""}
@@ -275,7 +275,7 @@ async function enter(user) {
       const isSeller = await getDoc(doc(db, "sellers", user.uid)).then((d) => d.exists()).catch(() => false);
       await signOut(auth);
       show($("#si-msg"), isSeller
-        ? "This is a seller account. Products on the shop are for shoppers only. Manage your own products on the Sellers page, or create a shopper account with a different email."
+        ? "This is a seller account. To shop with it too, sign in on the Sellers page, tick \"I also want to shop as a buyer\" and save. Or create a shopper account with a different email."
         : "This account isn't a shopper account. Create a shopper account to browse the shop.", "bad");
       return;
     }
