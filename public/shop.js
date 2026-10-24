@@ -246,6 +246,13 @@ $("#here-change").onclick = () => locationDialog({
   }
 });
 
+// Distance to a seller. A pin code spans at most about 5 km, so a seller in the shopper's
+// own pin code always counts as within 5 km, even without an exact map location.
+const away = (s) => {
+  const d = km(here, s);
+  return hereName?.pin && s.pin === hereName.pin ? Math.min(d, 5) : d;
+};
+const awayText = (s) => (hereName?.pin && s.pin === hereName.pin && !(km(here, s) <= 5) ? "in your pin code" : fmt(away(s)));
 const directionsLink = (r) => `https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lng}`;
 const whatsappLink = (r, text) => `https://wa.me/91${encodeURIComponent(r.whatsapp)}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
 
@@ -257,7 +264,7 @@ function render() {
     // A live product's seller is verified. If their listing isn't synced yet, the product
     // still shows, with the seller name saved on it.
     .map((p) => ({ p, s: byId.get(p.sellerId) || { id: p.sellerId, name: p.sellerName || "GiaZoNest seller" } }))
-    .map(({ p, s }) => ({ p, s, d: km(here, s) }))
+    .map(({ p, s }) => ({ p, s, d: away(s) }))
     .filter(({ p, s, d }) =>
       (!catSel.value || p.category === catSel.value) &&
       (!subSel.value || p.subCategory === subSel.value) &&
@@ -273,11 +280,11 @@ function render() {
       <span class="name">${esc(p.name)}</span>
       <span class="price">${rupees(sellingPrice(p))}${p.discount ? ` <s>${rupees(p.price)}</s>` : ""}</span>
       <span class="meta">${p.stock > 0 ? (p.stock <= 5 ? `Only ${p.stock} left` : "In stock") : `<b class="out">Out of stock</b>`}</span>
-      <span class="meta">${esc(s.name)}${fmt(d) ? " · " + fmt(d) : ""}</span>
+      <span class="meta">${esc(s.name)}${awayText(s) ? " · " + awayText(s) : ""}</span>
     </button></li>`).join("")
     : `<li class="empty">${liveLocation && radius !== Infinity ? `No products within ${radius} km of ${esc(hereName?.city || "you")} yet. Choose a bigger distance, or Clear to see every state.` : "No products match yet. Try another state, city, pin code or category."}</li>`;
   const rows = sellers
-    .map((r) => ({ r, d: km(here, r) }))
+    .map((r) => ({ r, d: away(r) }))
     .filter(({ r, d }) =>
       (!catSel.value || r.category === catSel.value) &&
       (!subSel.value || r.subCategory === subSel.value) &&
@@ -292,7 +299,7 @@ function render() {
       <div class="result-main">
         <span class="name">${esc(r.name)}</span>
         <span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""}</span>
-        <span class="meta">${[r.city, stateOf(r)].filter(Boolean).map(esc).join(", ")}${r.city || stateOf(r) ? " · " : ""}Pin ${esc(r.pin)}${fmt(d) ? " · " + fmt(d) + " away" : ""} · <span class="chip ok">KYC verified</span></span>
+        <span class="meta">${[r.city, stateOf(r)].filter(Boolean).map(esc).join(", ")}${r.city || stateOf(r) ? " · " : ""}Pin ${esc(r.pin)}${awayText(r) ? " · " + awayText(r).replace(/km$/, "km away") : ""} · <span class="chip ok">KYC verified</span></span>
         <span class="meta rating">${ratingText(ratingOf(reviews, r.id))}</span>
       </div>
       <div class="result-actions">${guest ? `
@@ -451,7 +458,7 @@ $("#product-results").addEventListener("click", async (e) => {
   const labels = Object.fromEntries(fieldsFor(p.category, p.subCategory).map((f) => [f.key, f.label]));
   $("#pv-details").innerHTML = [["Category", [p.subCategory, p.type].filter(Boolean).join(" › ")], ...Object.entries(p.details || {}).map(([k, v]) => [labels[k] || k, v])]
     .filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
-  $("#pv-seller").innerHTML = `Sold by <b>${esc(s.name || p.sellerName)}</b> · ${ratingText(ratingOf(reviews, p.sellerId))}${s.pin ? ` · Pin ${esc(s.pin)}` : ""}${fmt(km(here, s)) ? ` · ${fmt(km(here, s))} away` : ""} · <span class="chip ok">KYC verified</span>`;
+  $("#pv-seller").innerHTML = `Sold by <b>${esc(s.name || p.sellerName)}</b> · ${ratingText(ratingOf(reviews, p.sellerId))}${s.pin ? ` · Pin ${esc(s.pin)}` : ""}${awayText(s) ? ` · ${awayText(s).replace(/km$/, "km away")}` : ""} · <span class="chip ok">KYC verified</span>`;
   $("#pv-actions").innerHTML = guest ? `<span class="masked" aria-label="Contact details hidden">📞 +91 ••••• ••••• · ✉ •••••@•••••</span>
     <button type="button" class="btn" data-login>Sign in to buy or contact the seller</button>` : [
     s.whatsapp && p.stock > 0 ? `<a class="btn" href="${whatsappLink(s, `Hi ${s.name}, I'd like to buy ${p.name} (${rupees(sellingPrice(p))}) that I saw on GiaZoNest.`)}" target="_blank" rel="noopener">Buy on WhatsApp</a>` : "",

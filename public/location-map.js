@@ -57,6 +57,16 @@ export function placeName(loc) {
   return places.get(key);
 }
 
+// The centre of an Indian pin code, as { lat, lng }, from Nominatim. null when it isn't found.
+export async function pinLocation(pin) {
+  if (!/^[1-9]\d{5}$/.test(pin || "")) return null;
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&country=India&postalcode=${pin}&limit=1`);
+    const hit = r.ok ? (await r.json())[0] : null;
+    return hit ? { lat: round(Number(hit.lat)), lng: round(Number(hit.lon)) } : null;
+  } catch { return null; }
+}
+
 // Fills a form's empty pin code, state and city boxes from a named place.
 // The pin box gets a change event, so its own state and city lookup runs too.
 export function fillPlace(place, { pin, state, city } = {}) {
