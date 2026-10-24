@@ -181,6 +181,10 @@
           <label for="pa-address" style="grid-column:1/-1">Address <span class="hint">optional</span>
             <textarea id="pa-address" rows="2" maxlength="300" autocomplete="street-address"></textarea>
           </label>
+          <div class="map-field" style="grid-column:1/-1">
+            <span>Your location on the map * <span class="hint">We find it for you. Drag the pin if it's not right.</span></span>
+            <div id="pa-map"></div>
+          </div>
         </div>
         <div class="pid-box">
           <span class="hint">Your Partner ID</span>
@@ -203,6 +207,7 @@
       <div class="logo"><img class="logo-img" src="logo.png" alt="GiaZoNest" width="480" height="446"> <span class="badge" id="me-type">Partner</span></div>
       <div class="who">
         <span class="hint" id="me-name"></span>
+        <button class="btn ghost small" type="button" id="me-location">📍 My location</button>
         <button class="btn ghost small sign-out" type="button">Sign out</button>
       </div>
     </header>
@@ -241,6 +246,10 @@
                 <input id="es-city" type="text" maxlength="60" required>
                 <span class="hint" id="es-city-note"></span>
               </label>
+              <div class="map-field" style="grid-column:1/-1">
+                <span>Shop location on the map <span class="hint">Follows the pin code. At the shop? Detect it, or drag the pin.</span></span>
+                <div id="es-map"></div>
+              </div>
               <label for="es-email">Seller email *
                 <input id="es-email" type="email" autocomplete="off" placeholder="shop@example.com" required>
               </label>

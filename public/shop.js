@@ -14,6 +14,7 @@ import { fieldsFor, itemWord, sellingPrice, rupees } from "./product-fields.js?v
 import { termsGate, wireTermsLink, TERMS_VERSION } from "./terms.js?v=dev";
 import { ratingOf, ratingText, starString } from "./ratings.js?v=dev";
 import { STATES, stateFromPin } from "./places.js?v=dev";
+import { mapPicker, locationDialog } from "./location-map.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
 if (firebaseConfig.apiKey.startsWith("PASTE")) {
@@ -61,8 +62,39 @@ const fmt = (d) => d === Infinity ? "" : d < 1 ? "< 1 km" : `${Math.round(d).toL
 // ---------- Sign in, create account, reset
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const steps = ["step-signin", "step-signup", "step-forgot"];
-const step = (id) => steps.forEach((s) => (document.getElementById(s).hidden = s !== id));
+const signupMap = mapPicker($("#su-map"));
+const step = (id) => {
+  steps.forEach((s) => (document.getElementById(s).hidden = s !== id));
+  // A new shopper's location is found for them; they can drag the pin to correct it.
+  if (id === "step-signup" && !signupMap.get()) signupMap.detect();
+};
+$("#su-pin").addEventListener("input", () => {
+  const loc = PINS[$("#su-pin").value.trim()], cur = signupMap.get();
+  if (loc && (!cur || cur.source === "pin")) signupMap.set(loc, "pin", 14);
+});
 $("#go-signup").onclick = () => step("step-signup");
+
+// Anyone can window-shop. Signing in (after the buyer terms) is needed only to contact sellers.
+async function openAuth(id = "step-signin", why = "") {
+  $("#shop-view").hidden = true;
+  await termsGate("buyer");
+  $("#auth-view").hidden = false;
+  step(id);
+  const w = $("#auth-why");
+  w.hidden = !why; w.textContent = why; w.className = "msg";
+  window.scrollTo(0, 0);
+}
+function showShop() { $("#auth-view").hidden = true; $("#terms-view").hidden = true; $("#shop-view").hidden = false; }
+$("#back-shop").onclick = showShop;
+$("#guest-signin").onclick = () => openAuth("step-signin");
+$("#guest-signup").onclick = () => openAuth("step-signup");
+const CONTACT_WHY = "Sign in, or create a free shopper account, to see the seller's contact details and contact them.";
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-login]");
+  if (!btn) return;
+  closeView();
+  openAuth(btn.dataset.login === "signup" ? "step-signup" : "step-signin", CONTACT_WHY);
+});
 $("#go-forgot").onclick = () => { const v = $("#si-id").value.trim(); $("#fg-email").value = v.includes("@") ? v : ""; step("step-forgot"); };
 document.querySelectorAll(".back").forEach((b) => (b.onclick = () => step("step-signin")));
 $("#si-show").onchange = (e) => ($("#si-pass").type = e.target.checked ? "text" : "password");
@@ -81,7 +113,7 @@ $("#signin-form").onsubmit = async (e) => {
       email = u.data().email;
     }
     await signInWithEmailAndPassword(auth, email, pw);
-    $("#si-pass").value = ""; m.hidden = true;
+    $("#si-pass").value = ""; m.hidden = true; $("#auth-why").hidden = true;
   } catch (err) { show(m, authError(err), "bad"); }
 };
 
@@ -102,7 +134,7 @@ $("#signup-form").onsubmit = async (e) => {
     creating = true;
     const cred = await createUserWithEmailAndPassword(auth, email, pw);
     await updateProfile(cred.user, { displayName: name });
-    const loc = PINS[pin];
+    const loc = signupMap.get() || PINS[pin];
     const batch = writeBatch(db);
     batch.set(doc(db, "buyers", cred.user.uid), {
       name, email, phone, pin,
@@ -134,6 +166,7 @@ $("#sign-out").onclick = () => signOut(auth);
 
 // ---------- Search
 let me = null, here = null, sellers = [], products = [], reviews = [];
+let guest = true; // window-shopping without an account: no contact details
 const catSel = $("#f-cat"), subSel = $("#f-sub"), typeSel = $("#f-type");
 const opt = (v, label = v) => { const o = document.createElement("option"); o.value = v; o.textContent = label; return o; };
 Object.keys(CATEGORIES).forEach((c) => catSel.append(opt(c)));
@@ -185,6 +218,7 @@ $("#place-clear").onclick = () => {
 };
 let liveLocation = false, savedHere = null;
 
+const directionsLink = (r) => `https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lng}`;
 const whatsappLink = (r, text) => `https://wa.me/91${encodeURIComponent(r.whatsapp)}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
 
 function render() {
@@ -232,17 +266,21 @@ function render() {
         <span class="meta">${[r.city, stateOf(r)].filter(Boolean).map(esc).join(", ")}${r.city || stateOf(r) ? " · " : ""}Pin ${esc(r.pin)}${fmt(d) ? " · " + fmt(d) + " away" : ""} · <span class="chip ok">KYC verified</span></span>
         <span class="meta rating">${ratingText(ratingOf(reviews, r.id))}</span>
       </div>
-      <div class="result-actions">
+      <div class="result-actions">${guest ? `
+        <span class="masked" aria-label="Contact details hidden">📞 +91 ••••• •••••</span>
+        <button type="button" class="btn small" data-login>Sign in to contact</button>` : `
         ${r.id === auth.currentUser?.uid ? `<span class="chip">Your shop</span>` : `<button type="button" class="btn ghost small" data-rate="${esc(r.id)}">${reviews.some((x) => x.sellerId === r.id && x.uid === auth.currentUser?.uid) ? "Edit my rating" : "Rate"}</button>`}
         ${r.whatsapp ? `<a class="btn small" href="${whatsappLink(r)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
         ${r.email ? `<a class="btn ghost small" href="mailto:${esc(r.email)}">Email</a>` : ""}
         ${r.website ? `<a class="btn ghost small" href="${esc(r.website)}" target="_blank" rel="noopener">Website</a>` : ""}
+        ${r.lat != null ? `<a class="btn ghost small" href="${directionsLink(r)}" target="_blank" rel="noopener">Directions</a>` : ""}`}
       </div>
     </li>`).join("")
     : `<li class="empty">No verified sellers match. Try another state, city, pin code or category.</li>`;
 }
 
 async function savePlace(fields) {
+  if (guest || !auth.currentUser) return;
   try { await updateDoc(doc(db, "buyers", auth.currentUser.uid), fields); } catch { /* the search still works without saving */ }
 }
 
@@ -262,58 +300,88 @@ $("#geo-btn").onclick = () => {
   { enableHighAccuracy: true, timeout: 10000 });
 };
 
-async function enter(user) {
-  $("#auth-view").hidden = true;
-  $("#shop-view").hidden = false;
-  $("#who-name").textContent = `Hello, ${user.displayName || user.email}`;
+// Loads what the shop shows. Guests get seller listings without contact details;
+// signed-in shoppers get the full public seller records.
+async function loadShop() {
+  $("#guest-actions").hidden = !guest;
+  $("#user-actions").hidden = guest;
+  $("#guest-note").hidden = !guest;
   $("#results").innerHTML = `<li class="empty">Loading sellers…</li>`;
   try {
-    // Only shoppers (accounts with a buyers profile) can browse. Seller and partner
-    // accounts are turned away, so sellers never see other sellers' products.
-    const mine = await getDoc(doc(db, "buyers", user.uid));
-    if (!mine.exists()) {
-      const isSeller = await getDoc(doc(db, "sellers", user.uid)).then((d) => d.exists()).catch(() => false);
-      await signOut(auth);
-      show($("#si-msg"), isSeller
-        ? "This is a seller account. To shop with it too, sign in on the Sellers page, tick \"I also want to shop as a buyer\" and save. Or create a shopper account with a different email."
-        : "This account isn't a shopper account. Create a shopper account to browse the shop.", "bad");
-      return;
-    }
-    const [pub, prods] = await Promise.all([getDocs(collection(db, "publicSellers")),
+    const [pub, prods] = await Promise.all([getDocs(collection(db, guest ? "sellerListings" : "publicSellers")),
       getDocs(query(collection(db, "products"), where("live", "==", true)))]);
     reviews = (await getDocs(collection(db, "reviews")).catch(() => ({ docs: [] }))).docs.map((d) => ({ id: d.id, ...d.data() }));
     sellers = pub.docs.map((d) => ({ id: d.id, ...d.data() }));
     products = prods.docs.map((d) => ({ id: d.id, ...d.data() }));
-    me = mine.exists() ? mine.data() : null;
-    // Records that this shopper accepted the current terms (they accepted on the terms screen to get here).
-    if (me && me.termsVersion !== TERMS_VERSION)
-      updateDoc(doc(db, "buyers", user.uid), { termsVersion: TERMS_VERSION, termsAcceptedAt: serverTimestamp() }).catch(() => {});
   } catch (err) {
     $("#results").innerHTML = `<li class="empty">Couldn't load sellers: ${esc(err.message)}</li>`;
     return;
   }
   // The search starts blank; the shopper's saved location only orders results, nearest first.
   const saved = me?.lat != null ? me : PINS[me?.pin];
-  savedHere = here = saved ? { lat: saved.lat, lng: saved.lng } : null;
+  if (!liveLocation) here = saved ? { lat: saved.lat, lng: saved.lng } : null;
+  savedHere = saved ? { lat: saved.lat, lng: saved.lng } : null;
   fillPlaceOptions();
   render();
 }
 
+async function enter(user) {
+  try {
+    // Only shoppers (accounts with a buyers profile) can sign in here. Seller and partner
+    // accounts are turned away, so sellers never see other sellers' contact details.
+    const mine = await getDoc(doc(db, "buyers", user.uid));
+    if (!mine.exists()) {
+      const isSeller = await getDoc(doc(db, "sellers", user.uid)).then((d) => d.exists()).catch(() => false);
+      await openAuth("step-signin");
+      show($("#si-msg"), isSeller
+        ? "This is a seller account. To shop with it too, sign in on the Sellers page, tick \"I also want to shop as a buyer\" and save. Or create a shopper account with a different email."
+        : "This account isn't a shopper account. Create a shopper account to contact sellers.", "bad");
+      await signOut(auth);
+      return;
+    }
+    me = mine.data();
+  } catch (err) {
+    $("#results").innerHTML = `<li class="empty">Couldn't load your account: ${esc(err.message)}</li>`;
+    return;
+  }
+  // Signed-in shoppers have accepted the buyer terms on this device.
+  $("#shop-view").hidden = true;
+  await termsGate("buyer");
+  if (me.termsVersion !== TERMS_VERSION)
+    updateDoc(doc(db, "buyers", user.uid), { termsVersion: TERMS_VERSION, termsAcceptedAt: serverTimestamp() }).catch(() => {});
+  guest = false;
+  $("#who-name").textContent = `Hello, ${user.displayName || user.email}`;
+  showShop();
+  await loadShop();
+}
+
+$("#my-location").onclick = () => locationDialog({
+  title: "Your location", note: "Sellers nearest to you show first. Drag the pin, or tap the map, to correct it.", start: me,
+  save: async (loc) => {
+    await updateDoc(doc(db, "buyers", auth.currentUser.uid), { lat: loc.lat, lng: loc.lng });
+    Object.assign(me, { lat: loc.lat, lng: loc.lng });
+    savedHere = { lat: loc.lat, lng: loc.lng };
+    if (!liveLocation) here = savedHere;
+    fillPlaceOptions(); render();
+  }
+});
+
 // ---------- Session
 let creating = false;
-// The buyer terms must be accepted on this device before the shop opens.
 wireTermsLink("buyer");
-await termsGate("buyer");
 
 onAuthStateChanged(auth, (user) => {
   if (creating) return; // the sign-up handler enters once the profile is saved
   if (user && user.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
+    openAuth("step-signin").then(() => show($("#si-msg"), "That's the admin account. Use the admin console instead.", "bad"));
     signOut(auth);
-    show($("#si-msg"), "That's the admin account. Use the admin console instead.", "bad");
     return;
   }
-  if (user) enter(user);
-  else { $("#shop-view").hidden = true; $("#auth-view").hidden = false; step("step-signin"); }
+  if (user) return enter(user);
+  // Signed out: window-shop as a guest. A sign-in screen that is open stays open.
+  guest = true; me = null;
+  if ($("#auth-view").hidden && $("#terms-view").hidden) showShop();
+  loadShop();
 });
 
 // ---------- Product details
@@ -343,7 +411,8 @@ $("#product-results").addEventListener("click", async (e) => {
   $("#pv-details").innerHTML = [["Category", [p.subCategory, p.type].filter(Boolean).join(" › ")], ...Object.entries(p.details || {}).map(([k, v]) => [labels[k] || k, v])]
     .filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
   $("#pv-seller").innerHTML = `Sold by <b>${esc(s.name || p.sellerName)}</b> · ${ratingText(ratingOf(reviews, p.sellerId))}${s.pin ? ` · Pin ${esc(s.pin)}` : ""}${fmt(km(here, s)) ? ` · ${fmt(km(here, s))} away` : ""} · <span class="chip ok">KYC verified</span>`;
-  $("#pv-actions").innerHTML = [
+  $("#pv-actions").innerHTML = guest ? `<span class="masked" aria-label="Contact details hidden">📞 +91 ••••• ••••• · ✉ •••••@•••••</span>
+    <button type="button" class="btn" data-login>Sign in to buy or contact the seller</button>` : [
     s.whatsapp && p.stock > 0 ? `<a class="btn" href="${whatsappLink(s, `Hi ${s.name}, I'd like to buy ${p.name} (${rupees(sellingPrice(p))}) that I saw on GiaZoNest.`)}" target="_blank" rel="noopener">Buy on WhatsApp</a>` : "",
     s.whatsapp && p.stock <= 0 ? `<a class="btn ghost" href="${whatsappLink(s, `Hi ${s.name}, will ${p.name} be back in stock?`)}" target="_blank" rel="noopener">Ask on WhatsApp</a>` : "",
     s.email ? `<a class="btn ghost" href="mailto:${esc(s.email)}?subject=${encodeURIComponent(p.name + " on GiaZoNest")}">Email seller</a>` : ""

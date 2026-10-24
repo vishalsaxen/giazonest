@@ -41,6 +41,8 @@
     </aside>
 
     <section class="auth-main">
+      <p><button type="button" class="link" id="back-shop">← Back to the shop</button></p>
+      <div id="auth-why" class="msg" hidden></div>
       <!-- Sign in -->
       <div id="step-signin" class="stack">
         <div>
@@ -82,6 +84,10 @@
           <label for="su-pin">Pin code * <span class="hint">helps us show sellers near you</span>
             <input id="su-pin" data-format="digits" type="text" inputmode="numeric" maxlength="6" autocomplete="postal-code" required>
           </label>
+          <div class="map-field">
+            <span>Your location <span class="hint">found for you; drag the pin if it's not right</span></span>
+            <div id="su-map"></div>
+          </div>
           <label for="su-pass">Password *
             <input id="su-pass" type="password" autocomplete="new-password" required>
           </label>
@@ -120,8 +126,14 @@
   <div class="wrap">
     <header class="top">
       <div class="logo"><img class="logo-img" src="logo.png" alt="GiaZoNest" width="480" height="446"></div>
-      <div class="who">
+      <div class="who" id="guest-actions" hidden>
+        <span class="hint">Just looking? No account needed.</span>
+        <button class="btn ghost small" type="button" id="guest-signin">Sign in</button>
+        <button class="btn small" type="button" id="guest-signup">Create account</button>
+      </div>
+      <div class="who" id="user-actions" hidden>
         <span class="hint" id="who-name"></span>
+        <button class="btn ghost small" type="button" id="my-location">📍 My location</button>
         <button class="btn ghost small" id="sign-out">Sign out</button>
       </div>
     </header>
@@ -153,6 +165,10 @@
     </section>
 
     <section class="panel">
+      <div class="guest-note" id="guest-note" hidden>
+        <span>You're window-shopping. Seller phone, WhatsApp and email show once you sign in.</span>
+        <button class="btn small" type="button" data-login="signup">Create a free account</button>
+      </div>
       <form class="filters" id="filter-form" novalidate>
         <label for="f-text">Search
           <input id="f-text" type="text" placeholder="Shop name or product, e.g. tabla">

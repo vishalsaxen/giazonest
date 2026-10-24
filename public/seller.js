@@ -10,6 +10,7 @@ import {
 import { firebaseConfig, SUPER_ADMIN_EMAIL } from "./firebase-config.js?v=dev";
 import "./formats.js?v=dev";
 import { PINS } from "./pincodes.js?v=dev";
+import { mapPicker } from "./location-map.js?v=dev";
 import { CATEGORIES, subsOf, typesOf } from "./categories.js?v=dev";
 import { checkContact } from "./contacts.js?v=dev";
 import { checkKyc, readKyc, fillKyc, wireKycSkips } from "./kyc.js?v=dev";
@@ -101,7 +102,7 @@ $("#forgot-form").onsubmit = async (e) => {
 $("#sign-out").onclick = () => signOut(auth);
 
 // ---------- Shop details
-let me = null, shop = null, buyer = null, products = [], geo = null;
+let me = null, shop = null, buyer = null, products = [];
 const chip = { "Verified": "ok", "Pending KYC": "warn", "Suspended": "bad", "KYC Rejected": "bad" };
 const catSel = $("#sh-cat"), subSel = $("#sh-sub"), typeSel = $("#sh-type");
 Object.keys(CATEGORIES).forEach((c) => catSel.append(opt(c)));
@@ -124,16 +125,13 @@ wireKycSkips("sk-");
 fillStates($("#sh-state"));
 autofillFromPin($("#sh-pin"), $("#sh-state"), $("#sh-city"), (t) => ($("#sh-city-note").textContent = t));
 
-$("#sh-geo").onclick = () => {
-  const msg = $("#sh-geo-msg");
-  if (!navigator.geolocation) { msg.textContent = "This browser can't share location. Your pin code will be used."; return; }
-  msg.textContent = "Finding your location…";
-  navigator.geolocation.getCurrentPosition((pos) => {
-    geo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-    msg.textContent = `Shop location set to ${geo.lat.toFixed(4)}, ${geo.lng.toFixed(4)}. Save to keep it.`;
-  }, () => { msg.textContent = "Location access was blocked. Your pin code will be used instead."; },
-  { enableHighAccuracy: true, timeout: 10000 });
-};
+// The shop's place on the map: found by the browser, and the seller can drag the pin to correct it.
+const shopMap = mapPicker($("#sh-map"), { hint: "Helps shoppers nearby find you. Drag the pin, or tap the map, to correct it." });
+$("#sh-pin").addEventListener("input", () => {
+  // Until the seller has a detected or hand-placed location, the map follows the pin code.
+  const loc = PINS[$("#sh-pin").value.trim()], cur = shopMap.get();
+  if (loc && (!cur || cur.source === "pin")) shopMap.set(loc, "pin", 14);
+});
 
 function showStatus() {
   const s = shop?.status, b = $("#status-banner");
@@ -168,6 +166,10 @@ function fillShop() {
   $("#sh-website").value = r.website || "";
   fillKyc("sk-", r.kyc || {});
   $("#sh-buyer").checked = !!buyer;
+  // A location the seller detected or placed is shown as saved. Shops saved before the map
+  // (or only with a pin code's centre) get their location detected now.
+  if (r.lat != null && (r.locSource === "gps" || r.locSource === "map")) shopMap.set(r, "saved");
+  else { shopMap.clear(); if (PINS[r.pin]) shopMap.set(PINS[r.pin], "pin", 14); shopMap.detect(); }
 }
 
 // ---------- Shopping as a buyer too
@@ -204,9 +206,12 @@ $("#shop-form").onsubmit = async (e) => {
   const contact = { email: $("#sh-email").value.trim().toLowerCase(), whatsapp: $("#sh-whatsapp").value.trim(), website: $("#sh-website").value.trim() };
   const badContact = checkContact(contact);
   if (badContact) return show(m, badContact.replace("the seller's", "your"), "bad");
-  const loc = geo || (shop?.pin === pin && shop.lat != null ? { lat: shop.lat, lng: shop.lng } : PINS[pin] || null);
+  const picked = shopMap.get();
+  const loc = picked || PINS[pin] || null;
+  if (!loc) return show(m, "Set your shop's location: tap \"Detect my location\" or tap the map to place the pin.", "bad");
+  const locSource = !picked ? "pin" : picked.source === "saved" ? shop?.locSource || "map" : picked.source;
   const data = { name, category, subCategory, type: type || null, pin, state, city, ...contact,
-    lat: loc ? loc.lat : null, lng: loc ? loc.lng : null, owner: me.displayName || "", loginEmail: me.email,
+    lat: loc.lat, lng: loc.lng, locSource, owner: me.displayName || "", loginEmail: me.email,
     alsoBuyer: $("#sh-buyer").checked, updatedAt: serverTimestamp() };
   if (shop?.termsVersion !== TERMS_VERSION) Object.assign(data, { termsVersion: TERMS_VERSION, termsAcceptedAt: serverTimestamp() });
   const locked = shop && (shop.status === "Verified" || shop.status === "Suspended");
@@ -224,7 +229,6 @@ $("#shop-form").onsubmit = async (e) => {
     else await setDoc(ref, { ...data, status: "Pending KYC", ownerUid: me.uid, createdAt: serverTimestamp() });
     shop = (await getDoc(ref)).data();
     if (!locked) fillKyc("sk-", shop.kyc || {});
-    geo = null;
     showStatus();
     show(m, "Saved.", "ok");
   } catch (err) { $("#sh-save").disabled = false; return show(m, `Couldn't save: ${err.message}`, "bad"); }

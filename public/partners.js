@@ -8,6 +8,7 @@ import {
 import { firebaseConfig, SUPER_ADMIN_EMAIL } from "./firebase-config.js?v=dev";
 import "./formats.js?v=dev";
 import { PINS } from "./pincodes.js?v=dev";
+import { mapPicker, locationDialog } from "./location-map.js?v=dev";
 import { CATEGORIES, subsOf, typesOf } from "./categories.js?v=dev";
 import { checkContact } from "./contacts.js?v=dev";
 import { fillStates, autofillFromPin } from "./places.js?v=dev";
@@ -167,7 +168,17 @@ function openDetails(user) {
     $("#pa-mobile").value = me.mobile; $("#pa-pan").value = me.pan; $("#pa-address").value = me.address || "";
     $("#pa-id").textContent = me.partnerId;
   } else previewId();
+  // The partner's location: their saved one, or found by the browser.
+  if (me?.lat != null) partnerMap.set(me, "saved"); else { partnerMap.clear(); partnerMap.detect(); }
 }
+const partnerMap = mapPicker($("#pa-map"));
+$("#me-location").onclick = () => locationDialog({
+  title: "Your location", note: "Drag the pin, or tap the map, to correct it.", start: me,
+  save: async (loc) => {
+    await updateDoc(doc(db, "partners", me.id), { lat: loc.lat, lng: loc.lng, updatedAt: serverTimestamp() });
+    Object.assign(me, { lat: loc.lat, lng: loc.lng });
+  }
+});
 $("#me-edit").onclick = () => openDetails(auth.currentUser);
 $("#pa-cancel").onclick = () => loadPartner(auth.currentUser);
 
@@ -176,7 +187,9 @@ $("#partner-form").onsubmit = async (e) => {
   const user = auth.currentUser, p = readPartner(), m = $("#pa-msg");
   const bad = checkPartner(p);
   if (bad) return show(m, bad, "bad");
-  const details = { type: p.type, name: p.name, dob: p.dob, mobile: p.mobile, pan: p.pan, address: p.address };
+  const loc = partnerMap.get();
+  if (!loc) return show(m, "Set your location: tap \"Detect my location\" or tap the map to place the pin.", "bad");
+  const details = { type: p.type, name: p.name, dob: p.dob, mobile: p.mobile, pan: p.pan, address: p.address, lat: loc.lat, lng: loc.lng };
   $("#pa-save").disabled = true;
   try {
     if (me) {
@@ -238,6 +251,12 @@ async function loadPartner(user) {
   $("#me-edit-row").hidden = ok;
   await loadMySellers();
 }
+// The enrolled shop's place: the pin code's centre, unless the partner detects it or drags the pin.
+const enrollMap = mapPicker($("#es-map"));
+$("#es-pin").addEventListener("input", () => {
+  const loc = PINS[$("#es-pin").value.trim()], cur = enrollMap.get();
+  if (loc && (!cur || cur.source === "pin")) enrollMap.set(loc, "pin", 14);
+});
 async function loadMySellers() {
   try {
     const s = await getDocs(query(collection(db, "sellers"), where("partnerUid", "==", me.id)));
@@ -266,14 +285,14 @@ $("#es-form").onsubmit = async (e) => {
   const discountText = $("#es-discount").value.trim();
   const badDiscount = checkDiscount(discountText);
   if (badDiscount) return show(m, badDiscount, "bad");
-  const loc = PINS[pin];
+  const loc = enrollMap.get() || PINS[pin];
   try {
     await addDoc(collection(db, "sellers"), {
       name, category, subCategory, ...(type && { type }), pin, state, city, ...contact, status: "Pending KYC",
       lat: loc ? loc.lat : null, lng: loc ? loc.lng : null, createdAt: serverTimestamp(),
       partnerUid: me.id, partnerId: me.partnerId, feeDiscount: Number(discountText)
     });
-    $("#es-form").reset(); fillSubs(); $("#es-city-note").textContent = ""; delete $("#es-state").dataset.touched;
+    $("#es-form").reset(); fillSubs(); enrollMap.clear(); $("#es-city-note").textContent = ""; delete $("#es-state").dataset.touched;
     show(m, `Enrolled ${name}. GiaZoNest will review their KYC.`, "ok");
     await loadMySellers();
   } catch (err) { show(m, `Couldn't enroll: ${err.message}`, "bad"); }

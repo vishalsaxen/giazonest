@@ -10,7 +10,7 @@ import { firebaseConfig, SUPER_ADMIN_EMAIL } from "./firebase-config.js?v=dev";
 import "./formats.js?v=dev";
 import { PINS, EXAMPLE_SELLERS, EXAMPLE_BUYERS } from "./pincodes.js?v=dev";
 import { CATEGORIES, subsOf, typesOf } from "./categories.js?v=dev";
-import { checkContact, publicSeller } from "./contacts.js?v=dev";
+import { checkContact, publicSeller, sellerListing } from "./contacts.js?v=dev";
 import { checkKyc, readKyc, fillKyc, wireKycSkips } from "./kyc.js?v=dev";
 import { sellingPrice, rupees, itemWord, fieldsFor, reviewOf } from "./product-fields.js?v=dev";
 import { fillStates, autofillFromPin, stateFromPin, lookupPin } from "./places.js?v=dev";
@@ -161,22 +161,23 @@ async function commitAll(ops) {
   }
 }
 
-// Shoppers only see the publicSellers collection (Verified sellers, without KYC details)
-// and products marked live: approved products of Verified sellers.
+// Signed-in shoppers see the publicSellers collection (Verified sellers, without KYC details).
+// Guests window-shopping see sellerListings: the same sellers without contact details.
+// Both show only products marked live: approved products of Verified sellers.
 async function syncPublic() {
-  const pub = await getDocs(collection(db, "publicSellers"));
   const stable = (o) => JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));
-  const have = new Map(pub.docs.map((d) => [d.id, stable(d.data())]));
-  const ops = [], verified = new Set();
-  for (const r of sellers) {
-    if (r.status === "Verified") {
-      verified.add(r.id);
-      const data = publicSeller(r);
-      if (have.get(r.id) !== stable(data)) ops.push((b) => b.set(doc(db, "publicSellers", r.id), data));
+  const ops = [], verified = new Set(sellers.filter((r) => r.status === "Verified").map((r) => r.id));
+  for (const [name, shape] of [["publicSellers", publicSeller], ["sellerListings", sellerListing]]) {
+    const pub = await getDocs(collection(db, name));
+    const have = new Map(pub.docs.map((d) => [d.id, stable(d.data())]));
+    for (const r of sellers) {
+      if (!verified.has(r.id)) continue;
+      const data = shape(r);
+      if (have.get(r.id) !== stable(data)) ops.push((b) => b.set(doc(db, name, r.id), data));
       have.delete(r.id);
     }
+    for (const id of have.keys()) ops.push((b) => b.delete(doc(db, name, id)));
   }
-  for (const id of have.keys()) ops.push((b) => b.delete(doc(db, "publicSellers", id)));
   for (const p of products) {
     const live = verified.has(p.sellerId) && reviewOf(p) === "Approved";
     if (p.live !== live) { ops.push((b) => b.update(doc(db, "products", p.id), { live })); p.live = live; }
@@ -456,7 +457,7 @@ $("#del-yes").onclick = async () => {
         continue;
       }
       // Each seller's record, shop listing, products and product photos all go.
-      ops.push((b) => b.delete(doc(db, "sellers", id)), (b) => b.delete(doc(db, "publicSellers", id)));
+      ops.push((b) => b.delete(doc(db, "sellers", id)), (b) => b.delete(doc(db, "publicSellers", id)), (b) => b.delete(doc(db, "sellerListings", id)));
       products.filter((p) => p.sellerId === id).forEach((p) => ops.push((b) => b.delete(doc(db, "products", p.id))));
       const imgs = await getDocs(query(collection(db, "productImages"), where("sellerId", "==", id)));
       imgs.docs.forEach((d) => ops.push((b) => b.delete(d.ref)));
