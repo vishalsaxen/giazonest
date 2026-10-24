@@ -226,8 +226,9 @@ function render() {
   const radius = Number($("#f-radius").value) || Infinity, f = place();
   const byId = new Map(sellers.map((r) => [r.id, r]));
   const items = products
-    .map((p) => ({ p, s: byId.get(p.sellerId) }))
-    .filter(({ s }) => s)
+    // A live product's seller is verified. If their listing isn't synced yet, the product
+    // still shows, with the seller name saved on it.
+    .map((p) => ({ p, s: byId.get(p.sellerId) || { id: p.sellerId, name: p.sellerName || "GiaZoNest seller" } }))
     .map(({ p, s }) => ({ p, s, d: km(here, s) }))
     .filter(({ p, s, d }) =>
       (!catSel.value || p.category === catSel.value) &&
@@ -284,21 +285,28 @@ async function savePlace(fields) {
   try { await updateDoc(doc(db, "buyers", auth.currentUser.uid), fields); } catch { /* the search still works without saving */ }
 }
 
-$("#geo-btn").onclick = () => {
+// Live location: the 📍 button, and automatically when the shop opens without a saved location.
+// Opening automatically shows every distance, nearest first, so nothing is hidden.
+function useLiveLocation(auto = false) {
   const msg = $("#loc-msg");
   if (!navigator.geolocation) { msg.textContent = "This browser can't share location. Type your state, city or pin code instead."; return; }
   msg.textContent = "Finding your location…";
   navigator.geolocation.getCurrentPosition((pos) => {
     const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-    const [pin, p] = Object.entries(PINS).sort((a, b) => km(loc, a[1]) - km(loc, b[1]))[0];
-    msg.textContent = `Using your live location, near ${p.place}. Choose a distance below.`;
+    const [, p] = Object.entries(PINS).sort((a, b) => km(loc, a[1]) - km(loc, b[1]))[0];
     here = loc; liveLocation = true;
     $("#f-radius-label").hidden = false;
+    if (auto) $("#f-radius").value = "";
+    msg.textContent = auto ? "Showing sellers nearest to your live location first. Choose a distance below to narrow it."
+      : `Using your live location, near ${p.place}. Choose a distance below.`;
     fillPlaceOptions(); render();
     savePlace({ lat: loc.lat, lng: loc.lng });
-  }, () => { msg.textContent = "Location access was blocked. Allow location for this site, or type your state, city or pin code."; },
+  }, () => { msg.textContent = auto ? "Allow location for this site to see sellers near you first, or type your state, city or pin code."
+      : "Location access was blocked. Allow location for this site, or type your state, city or pin code."; },
   { enableHighAccuracy: true, timeout: 10000 });
-};
+}
+$("#geo-btn").onclick = () => useLiveLocation();
+let autoLocated = false;
 
 // Loads what the shop shows. Guests get seller listings without contact details;
 // signed-in shoppers get the full public seller records.
@@ -323,6 +331,7 @@ async function loadShop() {
   savedHere = saved ? { lat: saved.lat, lng: saved.lng } : null;
   fillPlaceOptions();
   render();
+  if (!liveLocation && !savedHere && !autoLocated) { autoLocated = true; useLiveLocation(true); }
 }
 
 async function enter(user) {
