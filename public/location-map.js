@@ -34,16 +34,60 @@ export function detectLocation() {
   });
 }
 
+// The place at a location, as { city, state, pin, label } (label like "Pune, Maharashtra 412207"),
+// from OpenStreetMap's free Nominatim lookup. null when it can't be named. Answers are cached.
+const places = new Map();
+export function placeName(loc) {
+  if (!loc || loc.lat == null) return Promise.resolve(null);
+  const key = `${loc.lat.toFixed(3)},${loc.lng.toFixed(3)}`;
+  if (!places.has(key)) places.set(key, fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&addressdetails=1&accept-language=en&lat=${loc.lat}&lon=${loc.lng}`)
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => {
+      const a = j?.address;
+      if (!a) return null;
+      // The city, or else the district, which matches the city India Post gives a pin code (Pune for 412207).
+      const city = a.city || a.state_district?.replace(/ District$/i, "") || a.town || a.county || a.village || "";
+      const code = (a.postcode || "").replace(/\s/g, "");
+      const pin = /^[1-9]\d{5}$/.test(code) ? code : "";
+      const state = (a.state || "").replace(/ and /g, " & ");
+      return { city, state, pin, label: [city, state].filter(Boolean).join(", ") + (pin ? ` ${pin}` : "") };
+    })
+    .catch(() => null)
+    .then((p) => { if (!p) places.delete(key); return p; }));
+  return places.get(key);
+}
+
+// Fills a form's empty pin code, state and city boxes from a named place.
+// The pin box gets a change event, so its own state and city lookup runs too.
+export function fillPlace(place, { pin, state, city } = {}) {
+  if (!place) return;
+  if (pin && !pin.value.trim() && place.pin) { pin.value = place.pin; pin.dispatchEvent(new Event("change")); }
+  if (state && !state.value && place.state && [...(state.options || [])].some((o) => o.value === place.state)) state.value = place.state;
+  if (city && !city.value.trim() && place.city) city.value = place.city;
+}
+
 // Puts a map with a draggable pin into box. get() is the chosen { lat, lng, source } or null.
 // source is "gps" (detected), "map" (the person moved the pin), "pin" (a pin code's centre) or "saved".
-export function mapPicker(box, { hint = "Drag the pin, or tap the map, to correct it." } = {}) {
+// onPlace(place) runs with the named place each time the pin is detected or moved by hand.
+export function mapPicker(box, { hint = "Drag the pin, or tap the map, to correct it.", onPlace } = {}) {
   box.classList.add("map-picker");
   box.innerHTML = `<div class="map-canvas" role="application" aria-label="Map. Drag the pin to your location."></div>
     <div class="map-bar">
       <button type="button" class="btn ghost small" data-detect>📍 Detect my location</button>
       <span class="hint" data-msg aria-live="polite">${hint}</span>
-    </div>`;
-  const canvas = box.querySelector(".map-canvas"), msg = box.querySelector("[data-msg]");
+    </div>
+    <div class="place-box" data-place aria-live="polite" hidden></div>`;
+  const canvas = box.querySelector(".map-canvas"), msg = box.querySelector("[data-msg]"), placeBox = box.querySelector("[data-place]");
+  // Names the place under the map, like "📍 Pune, Maharashtra 412207".
+  let naming = 0;
+  async function name(loc, tell) {
+    const n = ++naming;
+    placeBox.hidden = false; placeBox.textContent = "📍 Finding the place name…";
+    const place = await placeName(loc);
+    if (n !== naming) return;
+    placeBox.textContent = place ? `📍 ${place.label}` : "📍 Location set (place name unavailable)";
+    if (place && tell) onPlace?.(place);
+  }
   let map = null, marker = null, value = null, detecting = null;
   const say = (t) => (msg.textContent = t);
 
@@ -53,7 +97,7 @@ export function mapPicker(box, { hint = "Drag the pin, or tap the map, to correc
       maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
     }).addTo(map);
     marker = L.marker([INDIA.lat, INDIA.lng], { draggable: true, autoPan: true, keyboard: true, title: "Your location" });
-    const moved = (ll) => { value = { lat: round(ll.lat), lng: round(ll.lng), source: "map" }; say("Pin moved. Save to keep this location."); };
+    const moved = (ll) => { value = { lat: round(ll.lat), lng: round(ll.lng), source: "map" }; say("Pin moved. Save to keep this location."); name(value, true); };
     marker.on("dragend", () => moved(marker.getLatLng()));
     map.on("click", (e) => { marker.setLatLng(e.latlng).addTo(map); moved(e.latlng); });
     // The map may start in a hidden form or dialog; redraw it once it has a size.
@@ -74,8 +118,10 @@ export function mapPicker(box, { hint = "Drag the pin, or tap the map, to correc
       if (!loc || loc.lat == null || loc.lng == null) return;
       value = { lat: round(loc.lat), lng: round(loc.lng), source, zoom };
       show(value, zoom);
+      // A pin code's centre is already named by the form; saved and detected places get named.
+      if (source === "pin") { naming++; placeBox.hidden = true; } else name(value, source === "gps");
     },
-    clear() { value = null; marker?.remove(); map?.setView([INDIA.lat, INDIA.lng], INDIA.zoom); },
+    clear() { value = null; naming++; placeBox.hidden = true; marker?.remove(); map?.setView([INDIA.lat, INDIA.lng], INDIA.zoom); },
     // Asks the browser where the person is and moves the pin there.
     detect() {
       if (detecting) return detecting;

@@ -14,7 +14,7 @@ import { fieldsFor, itemWord, sellingPrice, rupees } from "./product-fields.js?v
 import { termsGate, wireTermsLink, TERMS_VERSION } from "./terms.js?v=dev";
 import { ratingOf, ratingText, starString } from "./ratings.js?v=dev";
 import { STATES, stateFromPin } from "./places.js?v=dev";
-import { mapPicker, locationDialog } from "./location-map.js?v=dev";
+import { mapPicker, locationDialog, placeName, fillPlace } from "./location-map.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
 if (firebaseConfig.apiKey.startsWith("PASTE")) {
@@ -62,7 +62,7 @@ const fmt = (d) => d === Infinity ? "" : d < 1 ? "< 1 km" : `${Math.round(d).toL
 // ---------- Sign in, create account, reset
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const steps = ["step-signin", "step-signup", "step-forgot"];
-const signupMap = mapPicker($("#su-map"));
+const signupMap = mapPicker($("#su-map"), { onPlace: (place) => fillPlace(place, { pin: $("#su-pin") }) });
 const step = (id) => {
   steps.forEach((s) => (document.getElementById(s).hidden = s !== id));
   // A new shopper's location is found for them; they can drag the pin to correct it.
@@ -204,7 +204,7 @@ function fillPlaceOptions() {
   // Names the place in full once the typed letters point to just one state or city.
   const named = (typed, f, names) => { if (!f) return ""; const hits = [...new Set(names.filter((n) => n && norm(n).startsWith(f)))]; return hits.length === 1 ? hits[0] : typed; };
   const parts = [named($("#place-state").value.trim(), f.state, STATES), named($("#place-city").value.trim(), f.city, sellers.filter((r) => inPlace(r, { ...f, city: "", pin: "" })).map((r) => r.city)), f.pin && `Pin ${f.pin}`].filter(Boolean);
-  $("#where").textContent = here && liveLocation ? "Showing sellers near your live location" + (parts.length ? `, in ${parts.join(" › ")}` : "")
+  $("#where").textContent = here && liveLocation ? `Showing sellers near ${hereName?.city || "your location"}` + (parts.length ? `, in ${parts.join(" › ")}` : "")
     : parts.length ? `Showing sellers in ${parts.join(" › ")}` : "Showing sellers in every state";
 }
 ["#place-state", "#place-city", "#place-pin"].forEach((s) => ($(s).oninput = () => { $("#loc-msg").textContent = ""; fillPlaceOptions(); render(); }));
@@ -213,10 +213,38 @@ $("#place-clear").onclick = () => {
   $("#place-form").reset();
   liveLocation = false; here = savedHere;
   $("#f-radius-label").hidden = true;
+  $("#here-box").hidden = true;
   $("#loc-msg").textContent = "";
   fillPlaceOptions(); render();
 };
-let liveLocation = false, savedHere = null;
+let liveLocation = false, savedHere = null, hereName = null;
+
+// Shows sellers near a location: within the chosen distance (25 km to start), with the place
+// named in a box, like "📍 You're in Pune, Maharashtra 412207".
+async function setHere(loc) {
+  here = { lat: loc.lat, lng: loc.lng }; liveLocation = true; hereName = null;
+  $("#f-radius-label").hidden = false;
+  const box = $("#here-box");
+  box.hidden = false;
+  $("#here-name").textContent = "📍 Finding where you are…";
+  fillPlaceOptions(); render();
+  const place = await placeName(here);
+  if (here.lat !== loc.lat || here.lng !== loc.lng) return;
+  hereName = place;
+  $("#here-name").textContent = place ? `📍 You're in ${place.label}` : "📍 Using your location";
+  fillPlaceOptions(); render();
+}
+$("#here-change").onclick = () => locationDialog({
+  title: "Where are you?", note: "Drag the pin, or tap the map, to your place. Sellers near it show first.", start: here,
+  save: async (loc) => {
+    if (!guest) {
+      await updateDoc(doc(db, "buyers", auth.currentUser.uid), { lat: loc.lat, lng: loc.lng });
+      Object.assign(me, { lat: loc.lat, lng: loc.lng });
+      savedHere = { lat: loc.lat, lng: loc.lng };
+    }
+    setHere(loc);
+  }
+});
 
 const directionsLink = (r) => `https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lng}`;
 const whatsappLink = (r, text) => `https://wa.me/91${encodeURIComponent(r.whatsapp)}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
@@ -247,7 +275,7 @@ function render() {
       <span class="meta">${p.stock > 0 ? (p.stock <= 5 ? `Only ${p.stock} left` : "In stock") : `<b class="out">Out of stock</b>`}</span>
       <span class="meta">${esc(s.name)}${fmt(d) ? " · " + fmt(d) : ""}</span>
     </button></li>`).join("")
-    : `<li class="empty">No products match yet. Try another state, city, pin code or category.</li>`;
+    : `<li class="empty">${liveLocation && radius !== Infinity ? `No products within ${radius} km of ${esc(hereName?.city || "you")} yet. Choose a bigger distance, or Clear to see every state.` : "No products match yet. Try another state, city, pin code or category."}</li>`;
   const rows = sellers
     .map((r) => ({ r, d: km(here, r) }))
     .filter(({ r, d }) =>
@@ -277,7 +305,7 @@ function render() {
         ${r.lat != null ? `<a class="btn ghost small" href="${directionsLink(r)}" target="_blank" rel="noopener">Directions</a>` : ""}`}
       </div>
     </li>`).join("")
-    : `<li class="empty">No verified sellers match. Try another state, city, pin code or category.</li>`;
+    : `<li class="empty">${liveLocation && radius !== Infinity ? `No verified sellers within ${radius} km of ${esc(hereName?.city || "you")} yet. Choose a bigger distance, or Clear to see every state.` : "No verified sellers match. Try another state, city, pin code or category."}</li>`;
 }
 
 async function savePlace(fields) {
@@ -286,20 +314,14 @@ async function savePlace(fields) {
 }
 
 // Live location: the 📍 button, and automatically when the shop opens without a saved location.
-// Opening automatically shows every distance, nearest first, so nothing is hidden.
 function useLiveLocation(auto = false) {
   const msg = $("#loc-msg");
   if (!navigator.geolocation) { msg.textContent = "This browser can't share location. Type your state, city or pin code instead."; return; }
   msg.textContent = "Finding your location…";
   navigator.geolocation.getCurrentPosition((pos) => {
     const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-    const [, p] = Object.entries(PINS).sort((a, b) => km(loc, a[1]) - km(loc, b[1]))[0];
-    here = loc; liveLocation = true;
-    $("#f-radius-label").hidden = false;
-    if (auto) $("#f-radius").value = "";
-    msg.textContent = auto ? "Showing sellers nearest to your live location first. Choose a distance below to narrow it."
-      : `Using your live location, near ${p.place}. Choose a distance below.`;
-    fillPlaceOptions(); render();
+    msg.textContent = "Showing sellers near you. Choose a distance below to see more.";
+    setHere(loc);
     savePlace({ lat: loc.lat, lng: loc.lng });
   }, () => { msg.textContent = auto ? "Allow location for this site to see sellers near you first, or type your state, city or pin code."
       : "Location access was blocked. Allow location for this site, or type your state, city or pin code."; },
@@ -310,27 +332,33 @@ let autoLocated = false;
 
 // Loads what the shop shows. Guests get seller listings without contact details;
 // signed-in shoppers get the full public seller records.
+let loads = 0; // only the newest load fills the page (a guest load can finish after sign-in)
 async function loadShop() {
+  const n = ++loads, asGuest = guest;
   $("#guest-actions").hidden = !guest;
   $("#user-actions").hidden = guest;
   $("#guest-note").hidden = !guest;
   $("#results").innerHTML = `<li class="empty">Loading sellers…</li>`;
   try {
-    const [pub, prods] = await Promise.all([getDocs(collection(db, guest ? "sellerListings" : "publicSellers")),
+    const [pub, prods] = await Promise.all([getDocs(collection(db, asGuest ? "sellerListings" : "publicSellers")),
       getDocs(query(collection(db, "products"), where("live", "==", true)))]);
-    reviews = (await getDocs(collection(db, "reviews")).catch(() => ({ docs: [] }))).docs.map((d) => ({ id: d.id, ...d.data() }));
+    const revs = await getDocs(collection(db, "reviews")).catch(() => ({ docs: [] }));
+    if (n !== loads) return;
+    reviews = revs.docs.map((d) => ({ id: d.id, ...d.data() }));
     sellers = pub.docs.map((d) => ({ id: d.id, ...d.data() }));
     products = prods.docs.map((d) => ({ id: d.id, ...d.data() }));
   } catch (err) {
-    $("#results").innerHTML = `<li class="empty">Couldn't load sellers: ${esc(err.message)}</li>`;
+    if (n === loads) $("#results").innerHTML = `<li class="empty">Couldn't load sellers: ${esc(err.message)}</li>`;
     return;
   }
   // The search starts blank; the shopper's saved location only orders results, nearest first.
   const saved = me?.lat != null ? me : PINS[me?.pin];
-  if (!liveLocation) here = saved ? { lat: saved.lat, lng: saved.lng } : null;
   savedHere = saved ? { lat: saved.lat, lng: saved.lng } : null;
+  if (!liveLocation) here = savedHere;
   fillPlaceOptions();
   render();
+  // A signed-in shopper's saved location shows sellers near it, like a detected one.
+  if (savedHere && !liveLocation) setHere(savedHere);
   if (!liveLocation && !savedHere && !autoLocated) { autoLocated = true; useLiveLocation(true); }
 }
 
@@ -350,7 +378,9 @@ async function enter(user) {
     }
     me = mine.data();
   } catch (err) {
-    $("#results").innerHTML = `<li class="empty">Couldn't load your account: ${esc(err.message)}</li>`;
+    // The shop stays open as a guest; the shopper can try signing in again.
+    showShop();
+    show($("#loc-msg"), `Couldn't load your account (${err.message}). You're browsing as a guest.`, "bad");
     return;
   }
   // Signed-in shoppers have accepted the buyer terms on this device.
@@ -370,14 +400,15 @@ $("#my-location").onclick = () => locationDialog({
     await updateDoc(doc(db, "buyers", auth.currentUser.uid), { lat: loc.lat, lng: loc.lng });
     Object.assign(me, { lat: loc.lat, lng: loc.lng });
     savedHere = { lat: loc.lat, lng: loc.lng };
-    if (!liveLocation) here = savedHere;
-    fillPlaceOptions(); render();
+    setHere(savedHere);
   }
 });
 
 // ---------- Session
-let creating = false;
+let creating = false, guestLoaded = false;
 wireTermsLink("buyer");
+// Guests see the shop at once, without waiting for the sign-in check.
+loadShop().then(() => (guestLoaded = true));
 
 onAuthStateChanged(auth, (user) => {
   if (creating) return; // the sign-up handler enters once the profile is saved
@@ -388,9 +419,10 @@ onAuthStateChanged(auth, (user) => {
   }
   if (user) return enter(user);
   // Signed out: window-shop as a guest. A sign-in screen that is open stays open.
+  const wasGuest = guest;
   guest = true; me = null;
   if ($("#auth-view").hidden && $("#terms-view").hidden) showShop();
-  loadShop();
+  if (!wasGuest || !guestLoaded) loadShop();
 });
 
 // ---------- Product details

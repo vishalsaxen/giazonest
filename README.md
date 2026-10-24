@@ -24,7 +24,7 @@ It is a static website (HTML, CSS, JavaScript) that uses Firebase for login (Aut
 - `public/photos.js`: shrinks product photos in the browser before saving
 - `public/places.js`: Indian states, and the state and city for a pin code (city from the free India Post lookup at api.postalpincode.in)
 - `public/terms.js`, `public/terms/`: the Terms & Conditions screen and texts
-- `public/location-map.js`: the location map. The browser detects where the person is and a draggable pin on a map lets them correct it (sellers' shop details, partner details and enrolled shops, shopper sign-up and "My location"). It uses Leaflet (kept in `public/vendor/leaflet`) with free OpenStreetMap tiles, so no key or billing is needed
+- `public/location-map.js`: the location map. The browser detects where the person is and a draggable pin on a map lets them correct it (sellers' shop details, partner details and enrolled shops, shopper sign-up and "My location"). It uses Leaflet (kept in `public/vendor/leaflet`) with free OpenStreetMap tiles, so no key or billing is needed. The place under the pin is named (city, state, pin code, like "Pune, Maharashtra 412207") with OpenStreetMap's free Nominatim lookup, and fills in empty pin code, state and city boxes. The shop shows that place in a "You're in …" box and lists sellers within 25 km of it to start
 - `public/ratings.js`: star rating helpers
 - `public/partners.html`, `public/partners.js`: the Partners page, where GiZee partners sign up and fill in their details, the super admin approves their KYC, and approved partners enroll sellers
 - `public/partner-fields.js`: the Partner ID and the partner and discount checks
