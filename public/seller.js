@@ -10,7 +10,7 @@ import {
 import { firebaseConfig, SUPER_ADMIN_EMAIL } from "./firebase-config.js?v=dev";
 import "./formats.js?v=dev";
 import { PINS } from "./pincodes.js?v=dev";
-import { mapPicker } from "./location-map.js?v=dev";
+import { mapPicker, fillPlace } from "./location-map.js?v=dev";
 import { CATEGORIES, subsOf, typesOf } from "./categories.js?v=dev";
 import { checkContact } from "./contacts.js?v=dev";
 import { checkKyc, readKyc, fillKyc, wireKycSkips } from "./kyc.js?v=dev";
@@ -126,7 +126,8 @@ fillStates($("#sh-state"));
 autofillFromPin($("#sh-pin"), $("#sh-state"), $("#sh-city"), (t) => ($("#sh-city-note").textContent = t));
 
 // The shop's place on the map: found by the browser, and the seller can drag the pin to correct it.
-const shopMap = mapPicker($("#sh-map"), { hint: "Helps shoppers nearby find you. Drag the pin, or tap the map, to correct it." });
+const shopMap = mapPicker($("#sh-map"), { hint: "Helps shoppers nearby find you. Drag the pin, or tap the map, to correct it.",
+  onPlace: (place) => fillPlace(place, { pin: $("#sh-pin"), state: $("#sh-state"), city: $("#sh-city") }) });
 $("#sh-pin").addEventListener("input", () => {
   // Until the seller has a detected or hand-placed location, the map follows the pin code.
   const loc = PINS[$("#sh-pin").value.trim()], cur = shopMap.get();

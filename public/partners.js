@@ -8,7 +8,7 @@ import {
 import { firebaseConfig, SUPER_ADMIN_EMAIL } from "./firebase-config.js?v=dev";
 import "./formats.js?v=dev";
 import { PINS } from "./pincodes.js?v=dev";
-import { mapPicker, locationDialog } from "./location-map.js?v=dev";
+import { mapPicker, locationDialog, fillPlace } from "./location-map.js?v=dev";
 import { CATEGORIES, subsOf, typesOf } from "./categories.js?v=dev";
 import { checkContact } from "./contacts.js?v=dev";
 import { fillStates, autofillFromPin } from "./places.js?v=dev";
@@ -171,7 +171,10 @@ function openDetails(user) {
   // The partner's location: their saved one, or found by the browser.
   if (me?.lat != null) partnerMap.set(me, "saved"); else { partnerMap.clear(); partnerMap.detect(); }
 }
-const partnerMap = mapPicker($("#pa-map"));
+const partnerMap = mapPicker($("#pa-map"), {
+  // An empty address gets the detected place, which the partner can add to.
+  onPlace: (place) => { if (!$("#pa-address").value.trim()) $("#pa-address").value = place.label; }
+});
 $("#me-location").onclick = () => locationDialog({
   title: "Your location", note: "Drag the pin, or tap the map, to correct it.", start: me,
   save: async (loc) => {
@@ -252,7 +255,9 @@ async function loadPartner(user) {
   await loadMySellers();
 }
 // The enrolled shop's place: the pin code's centre, unless the partner detects it or drags the pin.
-const enrollMap = mapPicker($("#es-map"));
+const enrollMap = mapPicker($("#es-map"), {
+  onPlace: (place) => fillPlace(place, { pin: $("#es-pin"), state: $("#es-state"), city: $("#es-city") })
+});
 $("#es-pin").addEventListener("input", () => {
   const loc = PINS[$("#es-pin").value.trim()], cur = enrollMap.get();
   if (loc && (!cur || cur.source === "pin")) enrollMap.set(loc, "pin", 14);

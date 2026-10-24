@@ -318,3 +318,7 @@ body { padding-bottom: 72px; }
 /* Guests on the shop: contact details stay hidden until they sign in */
 .masked { color: var(--muted); letter-spacing: .08em; font-variant-numeric: tabular-nums; }
 .guest-note { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: 10px; background: var(--soft); border: 1px solid var(--line); margin-bottom: 14px; }
+
+/* The detected place, e.g. "📍 Pune, Maharashtra 412207" */
+.place-box { padding: 8px 12px; border-radius: 8px; background: var(--soft); border: 1px solid var(--line); font-weight: 600; }
+.place-box.big { font-size: 1.05rem; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
