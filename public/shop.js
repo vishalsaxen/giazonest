@@ -310,19 +310,23 @@ let autoLocated = false;
 
 // Loads what the shop shows. Guests get seller listings without contact details;
 // signed-in shoppers get the full public seller records.
+let loads = 0; // only the newest load fills the page (a guest load can finish after sign-in)
 async function loadShop() {
+  const n = ++loads, asGuest = guest;
   $("#guest-actions").hidden = !guest;
   $("#user-actions").hidden = guest;
   $("#guest-note").hidden = !guest;
   $("#results").innerHTML = `<li class="empty">Loading sellers…</li>`;
   try {
-    const [pub, prods] = await Promise.all([getDocs(collection(db, guest ? "sellerListings" : "publicSellers")),
+    const [pub, prods] = await Promise.all([getDocs(collection(db, asGuest ? "sellerListings" : "publicSellers")),
       getDocs(query(collection(db, "products"), where("live", "==", true)))]);
-    reviews = (await getDocs(collection(db, "reviews")).catch(() => ({ docs: [] }))).docs.map((d) => ({ id: d.id, ...d.data() }));
+    const revs = await getDocs(collection(db, "reviews")).catch(() => ({ docs: [] }));
+    if (n !== loads) return;
+    reviews = revs.docs.map((d) => ({ id: d.id, ...d.data() }));
     sellers = pub.docs.map((d) => ({ id: d.id, ...d.data() }));
     products = prods.docs.map((d) => ({ id: d.id, ...d.data() }));
   } catch (err) {
-    $("#results").innerHTML = `<li class="empty">Couldn't load sellers: ${esc(err.message)}</li>`;
+    if (n === loads) $("#results").innerHTML = `<li class="empty">Couldn't load sellers: ${esc(err.message)}</li>`;
     return;
   }
   // The search starts blank; the shopper's saved location only orders results, nearest first.
@@ -350,7 +354,9 @@ async function enter(user) {
     }
     me = mine.data();
   } catch (err) {
-    $("#results").innerHTML = `<li class="empty">Couldn't load your account: ${esc(err.message)}</li>`;
+    // The shop stays open as a guest; the shopper can try signing in again.
+    showShop();
+    show($("#loc-msg"), `Couldn't load your account (${err.message}). You're browsing as a guest.`, "bad");
     return;
   }
   // Signed-in shoppers have accepted the buyer terms on this device.
@@ -376,8 +382,10 @@ $("#my-location").onclick = () => locationDialog({
 });
 
 // ---------- Session
-let creating = false;
+let creating = false, guestLoaded = false;
 wireTermsLink("buyer");
+// Guests see the shop at once, without waiting for the sign-in check.
+loadShop().then(() => (guestLoaded = true));
 
 onAuthStateChanged(auth, (user) => {
   if (creating) return; // the sign-up handler enters once the profile is saved
@@ -388,9 +396,10 @@ onAuthStateChanged(auth, (user) => {
   }
   if (user) return enter(user);
   // Signed out: window-shop as a guest. A sign-in screen that is open stays open.
+  const wasGuest = guest;
   guest = true; me = null;
   if ($("#auth-view").hidden && $("#terms-view").hidden) showShop();
-  loadShop();
+  if (!wasGuest || !guestLoaded) loadShop();
 });
 
 // ---------- Product details
