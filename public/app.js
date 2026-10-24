@@ -16,6 +16,7 @@ import { sellingPrice, rupees, itemWord, fieldsFor, reviewOf } from "./product-f
 import { fillStates, autofillFromPin, stateFromPin, lookupPin } from "./places.js?v=dev";
 import { ratingOf, ratingText, starString } from "./ratings.js?v=dev";
 import { partnerRows, partnerStats, wirePartnerReview } from "./partner-review.js?v=dev";
+import { pinLocation } from "./location-map.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
 const ADMIN = SUPER_ADMIN_EMAIL.toLowerCase();
@@ -361,21 +362,33 @@ $("#kl-by-state").addEventListener("click", (e) => {
   if (st) { $("#kl-state").value = st; $("#kl-city").value = ""; renderKycList(); }
 });
 
-// Saves the state and the city (from the India Post lookup) on sellers that don't have them yet.
+// Saves the state and the city (from the India Post lookup) on sellers that don't have them yet,
+// and a map location (the pin code's centre) on sellers saved before the location map.
 let filling = false;
 async function fillPlaces() {
   if (filling) return;
   filling = true;
   try {
-    const todo = sellers.filter((r) => /^[1-9]\d{5}$/.test(r.pin || "") && (!r.city || !r.state));
+    const todo = sellers.filter((r) => /^[1-9]\d{5}$/.test(r.pin || "") && (!r.city || !r.state || r.lat == null));
     if (!todo.length) return;
-    $("#kl-note").textContent = `Looking up the city for ${todo.length} seller${todo.length === 1 ? "" : "s"}…`;
-    const ops = [];
+    $("#kl-note").textContent = `Looking up the city and map location for ${todo.length} seller${todo.length === 1 ? "" : "s"}…`;
+    const ops = [], centres = new Map();
     for (const r of todo) {
-      const found = await lookupPin(r.pin);
       const update = {};
-      if (!r.state && (found?.state || stateFromPin(r.pin))) update.state = found?.state || stateFromPin(r.pin);
-      if (!r.city && found?.city) update.city = found.city;
+      if (!r.city || !r.state) {
+        const found = await lookupPin(r.pin);
+        if (!r.state && (found?.state || stateFromPin(r.pin))) update.state = found?.state || stateFromPin(r.pin);
+        if (!r.city && found?.city) update.city = found.city;
+      }
+      if (r.lat == null) {
+        // One lookup per pin code, a second apart, as the free OpenStreetMap service asks.
+        if (!centres.has(r.pin)) {
+          if (centres.size) await new Promise((ok) => setTimeout(ok, 1100));
+          centres.set(r.pin, PINS[r.pin] || await pinLocation(r.pin));
+        }
+        const c = centres.get(r.pin);
+        if (c) Object.assign(update, { lat: c.lat, lng: c.lng, locSource: "pin" });
+      }
       if (Object.keys(update).length) { Object.assign(r, update); ops.push((b) => b.update(doc(db, "sellers", r.id), update)); }
     }
     await commitAll(ops);
