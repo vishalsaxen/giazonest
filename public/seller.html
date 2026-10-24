@@ -153,9 +153,9 @@
             <input id="sh-city" type="text" maxlength="60" autocomplete="address-level2" required>
             <span class="hint" id="sh-city-note"></span>
           </label>
-          <div class="geo-row" style="grid-column:1/-1">
-            <button class="btn ghost small" type="button" id="sh-geo">📍 Use my shop's location</button>
-            <span class="hint" id="sh-geo-msg">Helps shoppers nearby find you. Stand at your shop when you use it.</span>
+          <div class="map-field" style="grid-column:1/-1">
+            <span>Shop location on the map * <span class="hint">We find it for you. Stand at your shop, or drag the pin to it.</span></span>
+            <div id="sh-map"></div>
           </div>
           <label for="sh-email">Email *
             <input id="sh-email" type="email" autocomplete="email" required>

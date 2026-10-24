@@ -18,3 +18,12 @@ export function publicSeller(r) {
   for (const k of ["type", "email", "whatsapp", "website", "state", "city"]) if (r[k]) out[k] = r[k];
   return out;
 }
+
+// What anyone may see before signing in: the public seller record without the email,
+// WhatsApp and website, and with the location rounded to about a kilometre.
+export function sellerListing(r) {
+  const out = publicSeller(r);
+  for (const k of ["email", "whatsapp", "website"]) delete out[k];
+  const near = (n) => n == null ? null : Math.round(n * 100) / 100;
+  return { ...out, lat: near(out.lat), lng: near(out.lng) };
+}

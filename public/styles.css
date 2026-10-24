@@ -305,3 +305,16 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; 
   text-decoration: none; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
 .wa-contact:hover { background: #1EBE5A; }
 body { padding-bottom: 72px; }
+
+/* Location map with a draggable pin (location-map.js) */
+.map-picker { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.map-canvas { height: 260px; border-radius: 10px; border: 1px solid var(--line); background: var(--soft); z-index: 0; }
+.map-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.map-field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
+.overlay .map-canvas { height: min(380px, 55vh); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .map-canvas .leaflet-tile-pane { filter: brightness(.85) contrast(1.05); } }
+:root[data-theme="dark"] .map-canvas .leaflet-tile-pane { filter: brightness(.85) contrast(1.05); }
+
+/* Guests on the shop: contact details stay hidden until they sign in */
+.masked { color: var(--muted); letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+.guest-note { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: 10px; background: var(--soft); border: 1px solid var(--line); margin-bottom: 14px; }

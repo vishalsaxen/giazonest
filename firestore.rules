@@ -86,6 +86,10 @@ service cloud.firestore {
         && resource.data.status in ['Pending KYC', 'KYC Rejected']
         && request.resource.data.status == 'Pending KYC'
         && !changed().hasAny(['partnerId', 'aadhaarLast4', 'email', 'enrolledAt', 'enrolledBy', 'kycReviewedAt', 'kycReviewedBy', 'kycNote']);
+      // Any partner, approved or not, can move their pin on the map.
+      allow update: if isOwner(id)
+        && changed().hasOnly(['lat', 'lng', 'updatedAt'])
+        && request.resource.data.lat is number && request.resource.data.lng is number;
     }
     // Partner ID -> partner uid, so no two partners get the same ID.
     match /partnerIds/{pid} {
@@ -100,6 +104,12 @@ service cloud.firestore {
     match /publicSellers/{id} {
       allow read: if isSuperAdmin() || isBuyer();
       allow get: if isOwner(id);
+      allow write: if isSuperAdmin();
+    }
+    // The same verified sellers without email, WhatsApp or website, and with the location
+    // rounded, so anyone can window-shop without an account. The admin console keeps it in sync.
+    match /sellerListings/{id} {
+      allow read: if true;
       allow write: if isSuperAdmin();
     }
     // Products. Shoppers see only live ones: the seller is verified and GiaZoNest
@@ -129,7 +139,8 @@ service cloud.firestore {
     match /products/{pid} {
       allow read, write: if isSuperAdmin();
       allow read: if signedIn() && resource.data.sellerId == request.auth.uid;
-      allow read: if isBuyer() && resource.data.live == true;
+      // Live products are open to everyone, so guests can window-shop.
+      allow read: if resource.data.live == true;
       allow create: if signedIn() && validProduct()
         && request.resource.data.review == 'Pending'
         && !request.resource.data.keys().hasAny(['reviewedAt', 'reviewedBy', 'reviewNote']);
@@ -148,8 +159,10 @@ service cloud.firestore {
     // or replace photos on a product that is waiting for review, and, once their
     // KYC is verified, on an approved product without another review.
     match /productImages/{iid} {
-      allow read: if isSuperAdmin() || isBuyer()
-        || (signedIn() && resource.data.sellerId == request.auth.uid);
+      // Photos of live products are open to everyone, like the products.
+      allow read: if isSuperAdmin()
+        || (signedIn() && resource.data.sellerId == request.auth.uid)
+        || get(/databases/$(database)/documents/products/$(resource.data.productId)).data.live == true;
       allow write: if isSuperAdmin();
       function validPhoto() {
         let product = getAfter(/databases/$(database)/documents/products/$(request.resource.data.productId)).data;
@@ -187,7 +200,7 @@ service cloud.firestore {
       allow delete: if isOwner(uid) && resource.data.fromSeller == true;
     }
     // Star ratings and optional feedback, one per shopper per seller, kept at
-    // reviews/{sellerId}_{shopper uid}. Signed-in people can read them; a
+    // reviews/{sellerId}_{shopper uid}. Anyone can read them (guests see ratings too); a
     // shopper can write and delete only their own, and only for a verified shop.
     match /reviews/{rid} {
       function validReview() {
@@ -200,7 +213,7 @@ service cloud.firestore {
           && r.name is string && r.name.size() <= 80
           && exists(/databases/$(database)/documents/publicSellers/$(r.sellerId));
       }
-      allow read: if signedIn();
+      allow read: if true;
       allow create, update: if signedIn() && validReview();
       allow delete: if isSuperAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
     }
