@@ -15,15 +15,24 @@ export function checkContact({ email, whatsapp, website }, allowBlank = false) {
 export function publicSeller(r) {
   const out = { name: r.name, category: r.category || "", subCategory: r.subCategory || "", pin: r.pin,
     lat: r.lat ?? null, lng: r.lng ?? null };
-  for (const k of ["type", "email", "whatsapp", "website", "state", "city"]) if (r[k]) out[k] = r[k];
+  for (const k of ["type", "owner", "email", "whatsapp", "website", "state", "city"]) if (r[k]) out[k] = r[k];
   return out;
 }
 
-// What anyone may see before signing in: the public seller record without the email,
-// WhatsApp and website, and with the location rounded to about a kilometre.
+// What anyone may see before signing in: the public seller record with the location rounded
+// to about a kilometre, and only part of the contact details. Guests see the first 7 digits of
+// the WhatsApp number (the last 3 show as hearts) and the email with most of its name hidden,
+// like "riy•••@shop.in". The full details need a shopper sign-in.
+export const maskEmail = (email) => {
+  const [name, domain] = String(email || "").split("@");
+  return name && domain ? `${name.slice(0, Math.min(3, Math.max(1, name.length - 2)))}•••@${domain}` : "";
+};
 export function sellerListing(r) {
   const out = publicSeller(r);
   for (const k of ["email", "whatsapp", "website"]) delete out[k];
   const near = (n) => n == null ? null : Math.round(n * 100) / 100;
+  const phone = String(r.whatsapp || "").replace(/\D/g, "").slice(-10);
+  if (phone.length === 10) out.phone7 = phone.slice(0, 7);
+  if (r.email) out.emailHint = maskEmail(r.email);
   return { ...out, lat: near(out.lat), lng: near(out.lng) };
 }
