@@ -316,7 +316,8 @@ body { padding-bottom: 72px; }
 :root[data-theme="dark"] .map-canvas .leaflet-tile-pane { filter: brightness(.85) contrast(1.05); }
 
 /* Guests on the shop: contact details stay hidden until they sign in */
-.masked { color: var(--muted); letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+.masked { color: var(--muted); letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+.hearts { color: #E0245E; letter-spacing: .02em; }
 .guest-note { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: 10px; background: var(--soft); border: 1px solid var(--line); margin-bottom: 14px; }
 
 /* The detected place, e.g. "📍 Pune, Maharashtra 412207" */

@@ -253,6 +253,12 @@ const away = (s) => {
   return hereName?.pin && s.pin === hereName.pin ? Math.min(d, 5) : d;
 };
 const awayText = (s) => (hereName?.pin && s.pin === hereName.pin && !(km(here, s) <= 5) ? "in your pin code" : fmt(away(s)));
+// A guest's view of a seller's contact: "📞 +91 98765 43♥♥♥ · ✉ riy•••@shop.in".
+const hearts = `<span class="hearts" aria-hidden="true">♥♥♥</span>`;
+const guestContact = (r) => {
+  const phone = r.phone7 ? `📞 +91 ${esc(r.phone7.slice(0, 5))} ${esc(r.phone7.slice(5))}${hearts}` : "📞 +91 ••••• ••" + hearts;
+  return `<span class="masked" aria-label="Contact partly hidden until you sign in">${phone}${r.emailHint ? ` · ✉ ${esc(r.emailHint)}` : ""}</span>`;
+};
 const directionsLink = (r) => `https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lng}`;
 const whatsappLink = (r, text) => `https://wa.me/91${encodeURIComponent(r.whatsapp)}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
 
@@ -298,12 +304,13 @@ function render() {
     <li class="result">
       <div class="result-main">
         <span class="name">${esc(r.name)}</span>
+        ${r.owner ? `<span class="meta">Owner: ${esc(r.owner)}</span>` : ""}
         <span class="meta">${esc(r.category)}${r.subCategory ? " › " + esc(r.subCategory) : ""}${r.type ? " › " + esc(r.type) : ""}</span>
         <span class="meta">${[r.city, stateOf(r)].filter(Boolean).map(esc).join(", ")}${r.city || stateOf(r) ? " · " : ""}Pin ${esc(r.pin)}${awayText(r) ? " · " + awayText(r).replace(/km$/, "km away") : ""} · <span class="chip ok">KYC verified</span></span>
         <span class="meta rating">${ratingText(ratingOf(reviews, r.id))}</span>
       </div>
       <div class="result-actions">${guest ? `
-        <span class="masked" aria-label="Contact details hidden">📞 +91 ••••• •••••</span>
+        ${guestContact(r)}
         <button type="button" class="btn small" data-login>Sign in to contact</button>` : `
         ${r.id === auth.currentUser?.uid ? `<span class="chip">Your shop</span>` : `<button type="button" class="btn ghost small" data-rate="${esc(r.id)}">${reviews.some((x) => x.sellerId === r.id && x.uid === auth.currentUser?.uid) ? "Edit my rating" : "Rate"}</button>`}
         ${r.whatsapp ? `<a class="btn small" href="${whatsappLink(r)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
@@ -458,8 +465,8 @@ $("#product-results").addEventListener("click", async (e) => {
   const labels = Object.fromEntries(fieldsFor(p.category, p.subCategory).map((f) => [f.key, f.label]));
   $("#pv-details").innerHTML = [["Category", [p.subCategory, p.type].filter(Boolean).join(" › ")], ...Object.entries(p.details || {}).map(([k, v]) => [labels[k] || k, v])]
     .filter(([, v]) => v).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
-  $("#pv-seller").innerHTML = `Sold by <b>${esc(s.name || p.sellerName)}</b> · ${ratingText(ratingOf(reviews, p.sellerId))}${s.pin ? ` · Pin ${esc(s.pin)}` : ""}${awayText(s) ? ` · ${awayText(s).replace(/km$/, "km away")}` : ""} · <span class="chip ok">KYC verified</span>`;
-  $("#pv-actions").innerHTML = guest ? `<span class="masked" aria-label="Contact details hidden">📞 +91 ••••• ••••• · ✉ •••••@•••••</span>
+  $("#pv-seller").innerHTML = `Sold by <b>${esc(s.name || p.sellerName)}</b>${s.owner ? ` (${esc(s.owner)})` : ""} · ${ratingText(ratingOf(reviews, p.sellerId))}${s.pin ? ` · Pin ${esc(s.pin)}` : ""}${awayText(s) ? ` · ${awayText(s).replace(/km$/, "km away")}` : ""} · <span class="chip ok">KYC verified</span>`;
+  $("#pv-actions").innerHTML = guest ? `${guestContact(s)}
     <button type="button" class="btn" data-login>Sign in to buy or contact the seller</button>` : [
     s.whatsapp && p.stock > 0 ? `<a class="btn" href="${whatsappLink(s, `Hi ${s.name}, I'd like to buy ${p.name} (${rupees(sellingPrice(p))}) that I saw on GiaZoNest.`)}" target="_blank" rel="noopener">Buy on WhatsApp</a>` : "",
     s.whatsapp && p.stock <= 0 ? `<a class="btn ghost" href="${whatsappLink(s, `Hi ${s.name}, will ${p.name} be back in stock?`)}" target="_blank" rel="noopener">Ask on WhatsApp</a>` : "",
