@@ -14,7 +14,7 @@ import { fieldsFor, itemWord, sellingPrice, rupees } from "./product-fields.js?v
 import { termsGate, wireTermsLink, TERMS_VERSION } from "./terms.js?v=dev";
 import { ratingOf, ratingText, starString } from "./ratings.js?v=dev";
 import { STATES, stateFromPin } from "./places.js?v=dev";
-import { mapPicker, locationDialog, placeName, fillPlace } from "./location-map.js?v=dev";
+import { mapPicker, locationDialog, placeName, fillPlace, pinLocation } from "./location-map.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
 if (firebaseConfig.apiKey.startsWith("PASTE")) {
@@ -204,11 +204,33 @@ function fillPlaceOptions() {
   // Names the place in full once the typed letters point to just one state or city.
   const named = (typed, f, names) => { if (!f) return ""; const hits = [...new Set(names.filter((n) => n && norm(n).startsWith(f)))]; return hits.length === 1 ? hits[0] : typed; };
   const parts = [named($("#place-state").value.trim(), f.state, STATES), named($("#place-city").value.trim(), f.city, sellers.filter((r) => inPlace(r, { ...f, city: "", pin: "" })).map((r) => r.city)), f.pin && `Pin ${f.pin}`].filter(Boolean);
-  $("#where").textContent = here && liveLocation ? `Showing sellers near ${hereName?.city || "your location"}` + (parts.length ? `, in ${parts.join(" › ")}` : "")
+  if (nearPinMode(f)) { $("#where").textContent = `No sellers in pin ${f.pin} yet. Showing sellers near it, nearest first`; return; }
+  $("#where").textContent = here && liveLocation && !parts.length ? `Showing sellers near ${hereName?.city || "your location"}` + (parts.length ? `, in ${parts.join(" › ")}` : "")
     : parts.length ? `Showing sellers in ${parts.join(" › ")}` : "Showing sellers in every state";
 }
-["#place-state", "#place-city", "#place-pin"].forEach((s) => ($(s).oninput = () => { $("#loc-msg").textContent = ""; fillPlaceOptions(); render(); }));
-$("#place-form").onsubmit = (e) => e.preventDefault();
+["#place-state", "#place-city", "#place-pin"].forEach((s) => ($(s).oninput = () => { $("#loc-msg").textContent = ""; fillPlaceOptions(); render(); findPinSpot(); }));
+// Enter (or Go on a phone keyboard) shows the results: the keyboard closes and the list scrolls into view.
+$("#place-form").onsubmit = (e) => {
+  e.preventDefault();
+  fillPlaceOptions(); render(); findPinSpot();
+  document.activeElement?.blur?.();
+  $("#product-results").closest("section, .card, div")?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+// A full pin code with no sellers of its own shows the sellers nearest to it instead,
+// within the chosen distance (25 km if none). Its centre comes from PINS or OpenStreetMap.
+let pinSpot = null; // { pin, loc } once looked up; loc is null when the pin can't be found
+async function findPinSpot() {
+  const pin = place().pin;
+  if (!/^[1-9]\d{5}$/.test(pin) || pinSpot?.pin === pin || sellers.some((r) => String(r.pin) === pin)) return;
+  pinSpot = { pin, loc: PINS[pin] || null };
+  if (!pinSpot.loc) {
+    const loc = await pinLocation(pin);
+    if (pinSpot?.pin !== pin) return;
+    pinSpot = { pin, loc };
+  }
+  fillPlaceOptions(); render();
+}
+const nearPinMode = (f) => f.pin.length === 6 && pinSpot?.pin === f.pin && pinSpot.loc && !sellers.some((r) => inPlace(r, f));
 $("#place-clear").onclick = () => {
   $("#place-form").reset();
   liveLocation = false; here = savedHere;
@@ -265,6 +287,13 @@ const whatsappLink = (r, text) => `https://wa.me/91${encodeURIComponent(r.whatsa
 function render() {
   const text = $("#f-text").value.trim().toLowerCase();
   const radius = Number($("#f-radius").value) || Infinity, f = place();
+  // A typed state, city or pin code shows every seller there, however far from the shopper.
+  // The distance limit applies only to "near me", or around a pin code that has no sellers.
+  const typed = Boolean(f.state || f.city || f.pin), nearPin = nearPinMode(f);
+  const pinKm = (s) => (s.lat != null ? km(pinSpot.loc, s) : Infinity);
+  const shown = (s, d) => nearPin ? pinKm(s) <= (radius === Infinity ? 25 : radius)
+    : inPlace(s, f) && (typed || !liveLocation || radius === Infinity || d <= radius);
+  const order = (a, b) => (nearPin ? pinKm(a.s || a.r) - pinKm(b.s || b.r) : a.d - b.d);
   const byId = new Map(sellers.map((r) => [r.id, r]));
   const items = products
     // A live product's seller is verified. If their listing isn't synced yet, the product
@@ -276,8 +305,8 @@ function render() {
       (!subSel.value || p.subCategory === subSel.value) &&
       (!typeSel.value || p.type === typeSel.value) &&
       (!text || [p.name, p.description, p.subCategory, p.type, s.name, ...Object.values(p.details || {})].join(" ").toLowerCase().includes(text)) &&
-      inPlace(s, f) && (!liveLocation || radius === Infinity || d <= radius))
-    .sort((a, b) => (b.p.stock > 0) - (a.p.stock > 0) || a.d - b.d || a.p.name.localeCompare(b.p.name));
+      shown(s, d))
+    .sort((a, b) => (b.p.stock > 0) - (a.p.stock > 0) || order(a, b) || a.p.name.localeCompare(b.p.name));
   $("#product-count").textContent = items.length;
   $("#product-note").textContent = items.length ? "In stock first, then nearest" : "";
   $("#product-results").innerHTML = items.length ? items.map(({ p, s, d }) => `
@@ -288,7 +317,7 @@ function render() {
       <span class="meta">${p.stock > 0 ? (p.stock <= 5 ? `Only ${p.stock} left` : "In stock") : `<b class="out">Out of stock</b>`}</span>
       <span class="meta">${esc(s.name)}${awayText(s) ? " · " + awayText(s) : ""}</span>
     </button></li>`).join("")
-    : `<li class="empty">${liveLocation && radius !== Infinity ? `No products within ${radius} km of ${esc(hereName?.city || "you")} yet. Choose a bigger distance, or Clear to see every state.` : "No products match yet. Try another state, city, pin code or category."}</li>`;
+    : `<li class="empty">${nearPin ? `No products within ${radius === Infinity ? 25 : radius} km of pin ${esc(f.pin)} yet.` : liveLocation && radius !== Infinity && !typed ? `No products within ${radius} km of ${esc(hereName?.city || "you")} yet. Choose a bigger distance, or Clear to see every state.` : "No products match yet. Try another state, city, pin code or category."}</li>`;
   const rows = sellers
     .map((r) => ({ r, d: away(r) }))
     .filter(({ r, d }) =>
@@ -296,8 +325,8 @@ function render() {
       (!subSel.value || r.subCategory === subSel.value) &&
       (!typeSel.value || r.type === typeSel.value) &&
       (!text || [r.name, r.category, r.subCategory, r.type].join(" ").toLowerCase().includes(text)) &&
-      inPlace(r, f) && (!liveLocation || radius === Infinity || d <= radius))
-    .sort((a, b) => a.d - b.d || a.r.name.localeCompare(b.r.name));
+      shown(r, d))
+    .sort((a, b) => order(a, b) || a.r.name.localeCompare(b.r.name));
   $("#result-count").textContent = rows.length;
   $("#result-note").textContent = here ? "Nearest first" : "";
   $("#results").innerHTML = rows.length ? rows.map(({ r, d }) => `
@@ -319,7 +348,7 @@ function render() {
         ${r.lat != null ? `<a class="btn ghost small" href="${directionsLink(r)}" target="_blank" rel="noopener">Directions</a>` : ""}`}
       </div>
     </li>`).join("")
-    : `<li class="empty">${liveLocation && radius !== Infinity ? `No verified sellers within ${radius} km of ${esc(hereName?.city || "you")} yet. Choose a bigger distance, or Clear to see every state.` : "No verified sellers match. Try another state, city, pin code or category."}</li>`;
+    : `<li class="empty">${nearPin ? `No verified sellers within ${radius === Infinity ? 25 : radius} km of pin ${esc(f.pin)} yet.` : liveLocation && radius !== Infinity && !typed ? `No verified sellers within ${radius} km of ${esc(hereName?.city || "you")} yet. Choose a bigger distance, or Clear to see every state.` : "No verified sellers match. Try another state, city, pin code or category."}</li>`;
 }
 
 async function savePlace(fields) {
