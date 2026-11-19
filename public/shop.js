@@ -14,7 +14,7 @@ import { fieldsFor, itemWord, sellingPrice, rupees } from "./product-fields.js?v
 import { termsGate, wireTermsLink, TERMS_VERSION } from "./terms.js?v=dev";
 import { ratingOf, ratingText, starString } from "./ratings.js?v=dev";
 import { STATES, stateFromPin } from "./places.js?v=dev";
-import { shortCode, shareControls, wireShare } from "./share-link.js?v=dev";
+import { shortCode, shareControls, wireShare, imgUrl } from "./share-link.js?v=dev";
 import { mapPicker, locationDialog, placeName, fillPlace, pinLocation } from "./location-map.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
@@ -329,7 +329,7 @@ function render() {
   $("#product-note").textContent = items.length ? "In stock first, then nearest" : "";
   $("#product-results").innerHTML = items.length ? items.map(({ p, s, d }) => `
     <li class="product-tile"><button type="button" class="product-card" data-product="${esc(p.id)}">
-      ${p.thumb ? `<img src="${p.thumb}" alt="" loading="lazy">` : `<span class="empty-thumb">No photo</span>`}
+      ${p.thumb ? `<img src="${imgUrl(p)}" data-fallback="${p.thumb}" alt="${esc(p.name)}" loading="lazy">` : `<span class="empty-thumb">No photo</span>`}
       <span class="name">${esc(p.name)}</span>
       <span class="price">${rupees(sellingPrice(p))}${p.discount ? ` <s>${rupees(p.price)}</s>` : ""}</span>
       <span class="meta">${p.stock > 0 ? (p.stock <= 5 ? `Only ${p.stock} left` : "In stock") : `<b class="out">Out of stock</b>`}</span>
@@ -495,8 +495,10 @@ $("#pv-close").onclick = closeView;
 pv.addEventListener("keydown", (e) => { if (e.key === "Escape") closeView(); });
 pv.addEventListener("click", (e) => { if (e.target === pv) closeView(); });
 $("#pv-strip").addEventListener("click", (e) => {
-  const src = e.target.closest("[data-src]")?.dataset.src;
-  if (src) $("#pv-photo").src = src;
+  const b = e.target.closest("[data-src]");
+  if (!b) return;
+  const photo = $("#pv-photo");
+  photo.dataset.fallback = b.dataset.alt; photo.src = b.dataset.src;
 });
 
 $("#product-results").addEventListener("click", (e) => {
@@ -523,7 +525,9 @@ async function openProduct(p) {
     s.email ? `<a class="btn ghost" href="mailto:${esc(s.email)}?subject=${encodeURIComponent(p.name + " on GiaZoNest")}">Email seller</a>` : ""
   ].join("");
   const photo = $("#pv-photo");
-  photo.hidden = !p.thumb; photo.src = p.thumb || ""; photo.alt = p.name;
+  // Photos show from their https:// address (so "Copy image address" gives a real link),
+  // or from the saved copy until the site has published them.
+  photo.hidden = !p.thumb; photo.dataset.fallback = p.thumb || ""; photo.src = p.thumb ? imgUrl(p) : ""; photo.alt = p.name;
   $("#pv-strip").innerHTML = "";
   pv.hidden = false;
   $("#pv-close").focus();
@@ -532,8 +536,9 @@ async function openProduct(p) {
     const snap = await getDocs(query(collection(db, "productImages"), where("productId", "==", p.id)));
     if (viewing !== p) return;
     const srcs = snap.docs.map((d) => d.data()).sort((a, b) => a.n - b.n).map((x) => x.data);
-    if (srcs[0]) photo.src = srcs[0];
-    $("#pv-strip").innerHTML = srcs.length > 1 ? srcs.map((src, i) => `<li><button type="button" data-src="${src}" aria-label="Photo ${i + 1}"><img src="${src}" alt=""></button></li>`).join("") : "";
+    // The full-size saved photo replaces the small cover if the https:// one isn't published yet.
+    if (srcs[0]) { if (photo.src.startsWith("data:")) photo.src = srcs[0]; else photo.dataset.fallback = srcs[0]; }
+    $("#pv-strip").innerHTML = srcs.length > 1 ? srcs.map((src, i) => `<li><button type="button" data-src="${imgUrl(p, i)}" data-alt="${src}" aria-label="Photo ${i + 1}"><img src="${imgUrl(p, i)}" data-fallback="${src}" alt=""></button></li>`).join("") : "";
   } catch { /* the cover thumbnail is still shown */ }
 }
 

@@ -205,6 +205,8 @@ label.na { flex-direction: row; align-items: center; gap: 6px; font-weight: 500;
 .share-url { display: flex; gap: 6px; padding: 0 10px 10px; flex-wrap: wrap; }
 .product > .share-url { flex: 1 1 100%; padding: 0; max-width: 520px; }
 .share-url .btn { flex: none; }
+.share-row { flex: 1 1 100%; display: flex; flex-direction: column; gap: 2px; }
+.share-url > .hint { flex: 1 1 100%; font-size: .75rem; }
 .share-link { flex: 1 1 100%; min-width: 0; font: inherit; font-size: .78rem; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); color: inherit; }
 .product-card img, .product-card .empty-thumb { width: 100%; aspect-ratio: 1; object-fit: cover; display: grid; margin-bottom: 4px; }
 .product-card > span:not(.empty-thumb) { padding: 0 10px; }
