@@ -284,6 +284,56 @@ const guestContact = (r) => {
 const directionsLink = (r) => `https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lng}`;
 const whatsappLink = (r, text) => `https://wa.me/91${encodeURIComponent(r.whatsapp)}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
 
+// ---------- Short share links ("Generate URL" on cards with photos)
+// Every product gets a short, fixed code worked out from its id, so the same card always
+// gives the same link and nothing has to be saved: shop.html?d=<code> finds the live product
+// whose id gives that code and opens it, for guests too.
+const B62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+function shortCode(id) {
+  // cyrb53: a fast 53-bit string hash, written out as 8 base-62 characters.
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < id.length; i++) { const c = id.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  let n = 4294967296 * (2097151 & h2) + (h1 >>> 0), out = "";
+  for (let i = 0; i < 8; i++) { out = B62[n % 62] + out; n = Math.floor(n / 62); }
+  return out;
+}
+const shareUrl = (p) => `${location.origin}${location.pathname}?d=${shortCode(p.id)}`;
+const made = new Set(); // cards whose link is showing, so a re-render keeps it open
+const shareBox = (p) => `<input class="share-link" readonly value="${esc(shareUrl(p))}" aria-label="Link to ${esc(p.name)}">
+      <button type="button" class="btn small" data-copy-url>Copy</button>`;
+async function copyText(text, input) {
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch { input.select(); try { return document.execCommand("copy"); } catch { return false; } }
+}
+$("#product-results").addEventListener("click", async (e) => {
+  const box = e.target.closest("[data-share]");
+  if (!box) return;
+  const p = products.find((x) => x.id === box.dataset.share);
+  if (!p) return;
+  if (e.target.closest("[data-gen-url]")) { made.add(p.id); box.innerHTML = shareBox(p); }
+  else if (!e.target.closest("[data-copy-url]")) return;
+  const input = box.querySelector(".share-link"), btn = box.querySelector("[data-copy-url]");
+  const ok = await copyText(input.value, input);
+  input.focus(); input.select();
+  btn.textContent = ok ? "Copied ✓" : "Copy";
+  if (ok) setTimeout(() => { if (btn.isConnected) btn.textContent = "Copy"; }, 2000);
+});
+// A visit through a short link opens that product once, as soon as the products load.
+let linkCode = new URLSearchParams(location.search).get("d");
+function openLinked() {
+  if (!linkCode) return;
+  const p = products.find((x) => shortCode(x.id) === linkCode);
+  linkCode = null;
+  if (p) openProduct(p);
+  else {
+    const m = document.createElement("p");
+    $("#product-results").before(m);
+    show(m, "That product link no longer works: the product is sold or no longer listed. Have a look at what's here instead.", "bad");
+  }
+}
+
 function render() {
   const text = $("#f-text").value.trim().toLowerCase();
   const radius = Number($("#f-radius").value) || Infinity, f = place();
@@ -310,13 +360,14 @@ function render() {
   $("#product-count").textContent = items.length;
   $("#product-note").textContent = items.length ? "In stock first, then nearest" : "";
   $("#product-results").innerHTML = items.length ? items.map(({ p, s, d }) => `
-    <li><button type="button" class="product-card" data-product="${esc(p.id)}">
+    <li class="product-tile"><button type="button" class="product-card" data-product="${esc(p.id)}">
       ${p.thumb ? `<img src="${p.thumb}" alt="" loading="lazy">` : `<span class="empty-thumb">No photo</span>`}
       <span class="name">${esc(p.name)}</span>
       <span class="price">${rupees(sellingPrice(p))}${p.discount ? ` <s>${rupees(p.price)}</s>` : ""}</span>
       <span class="meta">${p.stock > 0 ? (p.stock <= 5 ? `Only ${p.stock} left` : "In stock") : `<b class="out">Out of stock</b>`}</span>
       <span class="meta">${esc(s.name)}${awayText(s) ? " · " + awayText(s) : ""}</span>
-    </button></li>`).join("")
+    </button>${p.thumb ? `
+    <div class="share-url" data-share="${esc(p.id)}">${made.has(p.id) ? shareBox(p) : `<button type="button" class="btn ghost small" data-gen-url>Generate URL</button>`}</div>` : ""}</li>`).join("")
     : `<li class="empty">${nearPin ? `No products within ${radius === Infinity ? 25 : radius} km of pin ${esc(f.pin)} yet.` : liveLocation && radius !== Infinity && !typed ? `No products within ${radius} km of ${esc(hereName?.city || "you")} yet. Choose a bigger distance, or Clear to see every state.` : "No products match yet. Try another state, city, pin code or category."}</li>`;
   const rows = sellers
     .map((r) => ({ r, d: away(r) }))
@@ -403,6 +454,7 @@ async function loadShop() {
   // A signed-in shopper's saved location shows sellers near it, like a detected one.
   if (savedHere && !liveLocation) setHere(savedHere);
   if (!liveLocation && !savedHere && !autoLocated) { autoLocated = true; useLiveLocation(true); }
+  openLinked();
 }
 
 async function enter(user) {
@@ -480,10 +532,12 @@ $("#pv-strip").addEventListener("click", (e) => {
   if (src) $("#pv-photo").src = src;
 });
 
-$("#product-results").addEventListener("click", async (e) => {
+$("#product-results").addEventListener("click", (e) => {
   const id = e.target.closest("[data-product]")?.dataset.product;
   const p = products.find((x) => x.id === id);
-  if (!p) return;
+  if (p) openProduct(p);
+});
+async function openProduct(p) {
   const s = sellers.find((r) => r.id === p.sellerId) || {};
   viewing = p;
   const word = itemWord(p.category, p.subCategory);
@@ -514,7 +568,7 @@ $("#product-results").addEventListener("click", async (e) => {
     if (srcs[0]) photo.src = srcs[0];
     $("#pv-strip").innerHTML = srcs.length > 1 ? srcs.map((src, i) => `<li><button type="button" data-src="${src}" aria-label="Photo ${i + 1}"><img src="${src}" alt=""></button></li>`).join("") : "";
   } catch { /* the cover thumbnail is still shown */ }
-});
+}
 
 // ---------- Ratings and feedback
 const rd = $("#rate-dialog");
