@@ -19,7 +19,8 @@ export const shareUrl = (p) => new URL(`shop.html?d=${shortCode(p.id)}`, locatio
 // 30 minutes) at img/<code>.jpg for the cover and img/<code>-2.jpg, -3.jpg… for the others.
 export const imgUrl = (p, i = 0) => new URL(`img/${shortCode(p.id)}${i ? `-${i + 1}` : ""}.jpg`, location.href).href;
 // An <img data-fallback="…"> whose https:// photo isn't published yet (a new product) shows the saved copy.
-document.addEventListener("error", (e) => {
+// (Skipped in scripts/export-photos.mjs, which loads this file in Node to share shortCode.)
+if (typeof document !== "undefined") document.addEventListener("error", (e) => {
   const img = e.target, alt = img?.dataset?.fallback;
   if (img?.tagName === "IMG" && alt && img.src !== alt) { img.src = alt; img.removeAttribute("data-fallback"); }
 }, true);
