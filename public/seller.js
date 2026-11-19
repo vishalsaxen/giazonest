@@ -16,6 +16,7 @@ import { checkContact } from "./contacts.js?v=dev";
 import { checkKyc, readKyc, fillKyc, wireKycSkips } from "./kyc.js?v=dev";
 import { fieldsFor, stockLabel, itemWord, sellingPrice, rupees, reviewOf } from "./product-fields.js?v=dev";
 import { shrink, thumb } from "./photos.js?v=dev";
+import { shareControls, wireShare } from "./share-link.js?v=dev";
 import { fillStates, autofillFromPin, stateFromPin } from "./places.js?v=dev";
 import { termsGate, wireTermsLink, TERMS_VERSION } from "./terms.js?v=dev";
 import { ratingOf, ratingText, starString } from "./ratings.js?v=dev";
@@ -295,10 +296,12 @@ function renderProducts() {
         <button type="button" class="btn small" data-sold="${esc(p.id)}"${p.stock > 0 ? "" : " disabled"}>Sold 1</button>
         <button type="button" class="btn ghost small" data-edit="${esc(p.id)}">Edit</button>
       </div>
+      ${shareControls(p)}
     </li>`;
   }).join("");
 }
 
+wireShare($("#product-list"), (id) => products.find((p) => p.id === id));
 $("#product-list").addEventListener("click", async (e) => {
   const sold = e.target.closest("[data-sold]")?.dataset.sold;
   const edit = e.target.closest("[data-edit]")?.dataset.edit;

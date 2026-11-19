@@ -17,6 +17,7 @@ import { fillStates, autofillFromPin, stateFromPin, lookupPin } from "./places.j
 import { ratingOf, ratingText, starString } from "./ratings.js?v=dev";
 import { partnerRows, partnerStats, wirePartnerReview } from "./partner-review.js?v=dev";
 import { pinLocation } from "./location-map.js?v=dev";
+import { shareControls, wireShare } from "./share-link.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
 const ADMIN = SUPER_ADMIN_EMAIL.toLowerCase();
@@ -619,10 +620,12 @@ function openKyc(id) {
         ${p.description ? `<span class="meta">${esc(p.description)}</span>` : ""}
         ${Object.keys(p.details || {}).length ? `<span class="meta">${Object.entries(p.details).map(([k, v]) => `${esc(fieldLabel(p, k))}: ${esc(v)}`).join(" · ")}</span>` : ""}
       </div>
+      ${shareControls(p)}
     </li>`).join("") : `<li class="empty">${kycSeller.ownerUid ? "No products added yet." : `This seller was added by ${kycSeller.partnerId ? "a partner" : "you"}, so they can't sign in to add products.`}</li>`;
   kd.hidden = false; $("#kyc-pan").focus();
 }
 $("#kyc-cancel").onclick = closeKyc;
+wireShare($("#kyc-products"), (id) => products.find((p) => p.id === id));
 kd.addEventListener("keydown", (e) => { if (e.key === "Escape") closeKyc(); });
 
 async function saveKyc(action) {

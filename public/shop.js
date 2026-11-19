@@ -14,6 +14,7 @@ import { fieldsFor, itemWord, sellingPrice, rupees } from "./product-fields.js?v
 import { termsGate, wireTermsLink, TERMS_VERSION } from "./terms.js?v=dev";
 import { ratingOf, ratingText, starString } from "./ratings.js?v=dev";
 import { STATES, stateFromPin } from "./places.js?v=dev";
+import { shortCode, shareControls, wireShare } from "./share-link.js?v=dev";
 import { mapPicker, locationDialog, placeName, fillPlace, pinLocation } from "./location-map.js?v=dev";
 
 const $ = (s) => document.querySelector(s);
@@ -284,42 +285,9 @@ const guestContact = (r) => {
 const directionsLink = (r) => `https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lng}`;
 const whatsappLink = (r, text) => `https://wa.me/91${encodeURIComponent(r.whatsapp)}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
 
-// ---------- Short share links ("Generate URL" on cards with photos)
-// Every product gets a short, fixed code worked out from its id, so the same card always
-// gives the same link and nothing has to be saved: shop.html?d=<code> finds the live product
-// whose id gives that code and opens it, for guests too.
-const B62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-function shortCode(id) {
-  // cyrb53: a fast 53-bit string hash, written out as 8 base-62 characters.
-  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
-  for (let i = 0; i < id.length; i++) { const c = id.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-  let n = 4294967296 * (2097151 & h2) + (h1 >>> 0), out = "";
-  for (let i = 0; i < 8; i++) { out = B62[n % 62] + out; n = Math.floor(n / 62); }
-  return out;
-}
-const shareUrl = (p) => `${location.origin}${location.pathname}?d=${shortCode(p.id)}`;
-const made = new Set(); // cards whose link is showing, so a re-render keeps it open
-const shareBox = (p) => `<input class="share-link" readonly value="${esc(shareUrl(p))}" aria-label="Link to ${esc(p.name)}">
-      <button type="button" class="btn small" data-copy-url>Copy</button>`;
-async function copyText(text, input) {
-  try { await navigator.clipboard.writeText(text); return true; }
-  catch { input.select(); try { return document.execCommand("copy"); } catch { return false; } }
-}
-$("#product-results").addEventListener("click", async (e) => {
-  const box = e.target.closest("[data-share]");
-  if (!box) return;
-  const p = products.find((x) => x.id === box.dataset.share);
-  if (!p) return;
-  if (e.target.closest("[data-gen-url]")) { made.add(p.id); box.innerHTML = shareBox(p); }
-  else if (!e.target.closest("[data-copy-url]")) return;
-  const input = box.querySelector(".share-link"), btn = box.querySelector("[data-copy-url]");
-  const ok = await copyText(input.value, input);
-  input.focus(); input.select();
-  btn.textContent = ok ? "Copied ✓" : "Copy";
-  if (ok) setTimeout(() => { if (btn.isConnected) btn.textContent = "Copy"; }, 2000);
-});
+// ---------- Short share links. Only the product's own seller (signed in to shop) gets
+// "Generate URL" here; the admin console and the Sellers page have it too.
+wireShare($("#product-results"), (id) => products.find((x) => x.id === id && x.sellerId === auth.currentUser?.uid));
 // A visit through a short link opens that product once, as soon as the products load.
 let linkCode = new URLSearchParams(location.search).get("d");
 function openLinked() {
@@ -366,8 +334,7 @@ function render() {
       <span class="price">${rupees(sellingPrice(p))}${p.discount ? ` <s>${rupees(p.price)}</s>` : ""}</span>
       <span class="meta">${p.stock > 0 ? (p.stock <= 5 ? `Only ${p.stock} left` : "In stock") : `<b class="out">Out of stock</b>`}</span>
       <span class="meta">${esc(s.name)}${awayText(s) ? " · " + awayText(s) : ""}</span>
-    </button>${p.thumb ? `
-    <div class="share-url" data-share="${esc(p.id)}">${made.has(p.id) ? shareBox(p) : `<button type="button" class="btn ghost small" data-gen-url>Generate URL</button>`}</div>` : ""}</li>`).join("")
+    </button>${!guest && p.sellerId === auth.currentUser?.uid ? shareControls(p) : ""}</li>`).join("")
     : `<li class="empty">${nearPin ? `No products within ${radius === Infinity ? 25 : radius} km of pin ${esc(f.pin)} yet.` : liveLocation && radius !== Infinity && !typed ? `No products within ${radius} km of ${esc(hereName?.city || "you")} yet. Choose a bigger distance, or Clear to see every state.` : "No products match yet. Try another state, city, pin code or category."}</li>`;
   const rows = sellers
     .map((r) => ({ r, d: away(r) }))
