@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Every 30 minutes, so new or changed product photos get their https:// address soon.
+  schedule:
+    - cron: "*/30 * * * *"
 
 permissions:
   contents: read
@@ -24,6 +27,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Stamp file versions so browsers load the newest files
         run: sed -i "s/?v=dev/?v=${GITHUB_SHA::7}/g" public/*.html public/*.js
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Copy live product photos to img/ (their https:// addresses)
+        run: node scripts/export-photos.mjs
+        # If Firestore can't be reached, the site still deploys; pages fall back to the saved photos.
+        continue-on-error: true
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

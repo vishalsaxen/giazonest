@@ -15,13 +15,26 @@ export function shortCode(id) {
 }
 // The link always points at the shop page next to whichever page made it.
 export const shareUrl = (p) => new URL(`shop.html?d=${shortCode(p.id)}`, location.href).href;
+// Each live product's photos are also published with the site (scripts/export-photos.mjs, every
+// 30 minutes) at img/<code>.jpg for the cover and img/<code>-2.jpg, -3.jpg… for the others.
+export const imgUrl = (p, i = 0) => new URL(`img/${shortCode(p.id)}${i ? `-${i + 1}` : ""}.jpg`, location.href).href;
+// An <img data-fallback="…"> whose https:// photo isn't published yet (a new product) shows the saved copy.
+document.addEventListener("error", (e) => {
+  const img = e.target, alt = img?.dataset?.fallback;
+  if (img?.tagName === "IMG" && alt && img.src !== alt) { img.src = alt; img.removeAttribute("data-fallback"); }
+}, true);
 // A link opens only live products that have a photo, so only those get the button.
 export const canShare = (p) => Boolean(p.thumb && p.live);
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const made = new Set(); // products whose link is showing, so a re-render keeps it open
-const box = (p) => `<input class="share-link" readonly value="${esc(shareUrl(p))}" aria-label="Link to ${esc(p.name)}">
-      <button type="button" class="btn small" data-copy-url>Copy</button>`;
+const box = (p) => `<label class="share-row"><span class="hint">Product link</span>
+        <input class="share-link" readonly value="${esc(shareUrl(p))}" aria-label="Link to ${esc(p.name)}"></label>
+      <button type="button" class="btn small" data-copy-url>Copy</button>
+      <label class="share-row"><span class="hint">Image address</span>
+        <input class="share-link" readonly value="${esc(imgUrl(p))}" aria-label="Image address of ${esc(p.name)}"></label>
+      <button type="button" class="btn ghost small" data-copy-url>Copy image address</button>
+      <span class="hint">A new photo's image address starts working within about 30 minutes.</span>`;
 export const shareControls = (p) => canShare(p)
   ? `<div class="share-url" data-share="${esc(p.id)}">${made.has(p.id) ? box(p) : `<button type="button" class="btn ghost small" data-gen-url>Generate URL</button>`}</div>` : "";
 
@@ -38,10 +51,13 @@ export function wireShare(list, find) {
     if (!p) return;
     if (e.target.closest("[data-gen-url]")) { made.add(p.id); el.innerHTML = box(p); }
     else if (!e.target.closest("[data-copy-url]")) return;
-    const input = el.querySelector(".share-link"), btn = el.querySelector("[data-copy-url]");
+    // Copy copies the link just before it; Generate URL copies the product link.
+    const btn = e.target.closest("[data-copy-url]") || el.querySelector("[data-copy-url]");
+    const input = btn.previousElementSibling.querySelector(".share-link"), label = btn.textContent;
     const ok = await copyText(input.value, input);
     input.focus(); input.select();
-    btn.textContent = ok ? "Copied ✓" : "Copy";
-    if (ok) setTimeout(() => { if (btn.isConnected) btn.textContent = "Copy"; }, 2000);
+    if (!ok) return;
+    btn.textContent = "Copied ✓";
+    setTimeout(() => { if (btn.isConnected) btn.textContent = label; }, 2000);
   });
 }
