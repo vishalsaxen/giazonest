@@ -1,7 +1,7 @@
 // Terms & Conditions: shown before the seller page and the shop open.
 // The terms text lives in terms/seller.md and terms/buyer.md, so it can be edited without touching code.
 
-export const TERMS_VERSION = "2026-10-03"; // change when the terms text changes, so everyone accepts again
+export const TERMS_VERSION = "2026-11-26"; // change when the terms text changes, so everyone accepts again
 export const SUPPORT_EMAIL = "gizee@giazonest.com";
 
 const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));

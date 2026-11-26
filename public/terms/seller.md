@@ -113,7 +113,7 @@ Where the seller is responsible for the issue, the seller may be responsible for
 
 GiaZoNest may charge sellers applicable marketplace fees, commissions, subscription fees, payment-processing charges, advertising fees, shipping-related charges, or other agreed charges.
 
-**Monthly seller subscription.** The seller agrees to pay GiaZoNest a subscription fee of **₹100 (one hundred rupees) per month** for using the GiaZoNest seller platform. The fee is paid by UPI to **pallavishal28-1@okicici**.
+**Monthly seller subscription.** The seller agrees to pay GiaZoNest a subscription fee of **₹200 (two hundred rupees) per month** for using the GiaZoNest seller platform. The fee is paid by UPI to **pallavishal28-1@okicici**.
 
 The applicable fee structure will be communicated to sellers through the platform or applicable seller agreement.
 

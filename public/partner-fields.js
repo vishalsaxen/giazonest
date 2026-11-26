@@ -3,7 +3,7 @@
 // in the browser to check it and to build the Partner ID.
 
 export const PARTNER_TYPES = ["GiZee"];
-export const MONTHLY_FEE = 100; // seller subscription in rupees; a partner's discount comes off this
+export const MONTHLY_FEE = 200; // seller subscription in rupees; a partner's discount comes off this
 
 const PAN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 const AADHAAR = /^[2-9][0-9]{11}$/;
