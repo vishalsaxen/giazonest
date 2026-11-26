@@ -54,7 +54,7 @@ service cloud.firestore {
         && request.resource.data.status == 'Pending KYC'
         && request.resource.data.name is string && request.resource.data.name.size() > 0
         && request.resource.data.feeDiscount is int
-        && request.resource.data.feeDiscount >= 0 && request.resource.data.feeDiscount <= 100
+        && request.resource.data.feeDiscount >= 0 && request.resource.data.feeDiscount <= 200
         && !request.resource.data.keys().hasAny(['ownerUid', 'kyc', 'kycReviewedAt', 'kycReviewedBy', 'kycNote', 'example']);
     }
     // Partner records: Partner ID, name, date of birth, mobile, PAN and Aadhaar last 4 only.
